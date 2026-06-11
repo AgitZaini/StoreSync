@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  SUPERVISOR
+  SALES
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum InventoryMutationType {
+  IN
+  OUT
+  ADJUSTMENT
+  OPNAME
+}
+
+enum PurchaseRequestStatus {
+  DRAFT
+  WAITING_APPROVAL
+  APPROVED
+  REJECTED
+  REVISION_REQUESTED
+  COMPLETED
+}
+
+enum PaymentMethod {
+  CASH
+  TRANSFER
+  QRIS
+  OTHER
+}
+
+model User {
+  id           String     @id @default(uuid())
+  name         String
+  email        String     @unique
+  passwordHash String
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  salesTransactions SalesTransaction[] @relation("SalesUser")
+  createdProducts   Product[]          @relation("ProductCreator")
+  notifications     Notification[]
+  refreshTokens     RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ProductCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+}
+
+model Product {
+  id            String   @id @default(uuid())
+  name          String
+  sku           String   @unique
+  unit          String
+  purchasePrice Decimal  @db.Decimal(14, 2)
+  sellingPrice  Decimal  @db.Decimal(14, 2)
+  stockQuantity Int      @default(0)
+  minimumStock  Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoryId String?
+  category   ProductCategory? @relation(fields: [categoryId], references: [id])
+  createdById String?
+  createdBy   User? @relation("ProductCreator", fields: [createdById], references: [id])
+
+  inventoryMutations     InventoryMutation[]
+  salesTransactionItems  SalesTransactionItem[]
+  purchaseRequestItems   PurchaseRequestItem[]
+}
+
+model InventoryMutation {
+  id           String                @id @default(uuid())
+  productId    String
+  type         InventoryMutationType
+  quantity     Int
+  previousStock Int
+  currentStock  Int
+  note         String?
+  referenceId  String?
+  createdAt    DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+model SalesTransaction {
+  id            String        @id @default(uuid())
+  transactionNo String        @unique
+  salesId       String
+  customerName  String?
+  paymentMethod PaymentMethod @default(CASH)
+  subtotal      Decimal       @db.Decimal(14, 2)
+  total         Decimal       @db.Decimal(14, 2)
+  transactionAt DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  sales User @relation("SalesUser", fields: [salesId], references: [id])
+  items SalesTransactionItem[]
+}
+
+model SalesTransactionItem {
+  id                 String  @id @default(uuid())
+  salesTransactionId String
+  productId          String
+  quantity           Int
+  unitPrice          Decimal @db.Decimal(14, 2)
+  purchasePrice      Decimal @db.Decimal(14, 2)
+  total              Decimal @db.Decimal(14, 2)
+
+  salesTransaction SalesTransaction @relation(fields: [salesTransactionId], references: [id])
+  product          Product          @relation(fields: [productId], references: [id])
+}
+
+model PurchaseRequest {
+  id          String                @id @default(uuid())
+  requestNo   String                @unique
+  status      PurchaseRequestStatus @default(DRAFT)
+  supplier    String?
+  note        String?
+  ownerNote   String?
+  createdById String
+  reviewedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items PurchaseRequestItem[]
+}
+
+model PurchaseRequestItem {
+  id                String  @id @default(uuid())
+  purchaseRequestId String
+  productId         String
+  quantity          Int
+  estimatedPrice    Decimal @db.Decimal(14, 2)
+  actualPrice       Decimal? @db.Decimal(14, 2)
+
+  purchaseRequest PurchaseRequest @relation(fields: [purchaseRequestId], references: [id])
+  product         Product         @relation(fields: [productId], references: [id])
+}
+
+model Deposit {
+  id          String   @id @default(uuid())
+  amount      Decimal  @db.Decimal(14, 2)
+  destination String
+  note        String?
+  depositedAt DateTime
+  createdAt   DateTime @default(now())
+}
+
+model OperationalExpense {
+  id          String   @id @default(uuid())
+  title       String
+  amount      Decimal  @db.Decimal(14, 2)
+  category    String?
+  note        String?
+  expenseAt   DateTime
+  createdAt   DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  actorId   String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
