@@ -65,6 +65,20 @@ npm run prisma:generate
 npm run dev
 ```
 
+### Backend testing
+
+Integration test backend memakai Jest + Supertest dan database PostgreSQL terpisah `storesync_test`.
+
+```bash
+docker compose up -d
+docker exec storesync-postgres createdb -U storesync storesync_test
+cd server
+DATABASE_URL="postgresql://storesync:storesync_dev@localhost:5432/storesync_test?schema=public" npx prisma migrate deploy
+npm test
+```
+
+Test coverage awal mencakup auth, RBAC, produk/stok, penjualan, SPP, deposit/finance, dashboard, dan notifikasi.
+
 Backend berjalan di:
 
 ```txt
