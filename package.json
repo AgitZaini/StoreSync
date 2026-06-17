@@ -1,0 +1,8 @@
+{
+  "name": "storesync",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "vercel-build": "npm --prefix server ci && npm --prefix server run prisma:generate && npm --prefix client ci && npm --prefix client run build"
+  }
+}

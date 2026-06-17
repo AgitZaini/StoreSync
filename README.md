@@ -79,6 +79,35 @@ npm test
 
 Test coverage awal mencakup auth, RBAC, produk/stok, penjualan, SPP, deposit/finance, dashboard, dan notifikasi.
 
+### Verifikasi Fase 7
+
+Checklist UAT tersedia di [docs/UAT_CHECKLIST.md](docs/UAT_CHECKLIST.md). Panduan deployment Docker tersedia di [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Opsi deployment gratis/staging dengan Vercel + Neon tersedia di [docs/VERCEL_NEON_DEPLOYMENT.md](docs/VERCEL_NEON_DEPLOYMENT.md).
+
+Perintah verifikasi sebelum UAT:
+
+```bash
+cd server
+npm test
+npm run build
+
+cd ../client
+npm run build
+```
+
+Deployment Docker produksi MVP:
+
+```bash
+cp .env.production.example .env.production
+docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
+```
+
+Deployment Vercel + Neon untuk staging gratis:
+
+```bash
+cp .env.vercel.example .env.vercel
+npm run vercel-build
+```
+
 Backend berjalan di:
 
 ```txt
@@ -187,4 +216,4 @@ http://localhost:3000
 - [x] Fase 4: alur SPP dan approval pembelian stok
 - [x] Fase 5: deposit dan laporan keuangan dasar
 - [x] Fase 6: dashboard per peran dan notifikasi
-- [ ] Fase 7: testing, UAT, dan deployment
+- [x] Fase 7: testing, UAT, dan deployment
