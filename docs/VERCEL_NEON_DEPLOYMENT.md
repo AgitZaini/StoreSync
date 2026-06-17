@@ -7,7 +7,7 @@ Panduan ini adalah opsi deployment gratis/staging untuk StoreSync tanpa VPS. Jal
 ```txt
 Vercel
 ├── client/dist sebagai static frontend
-└── app.ts sebagai Vercel Function untuk Express API
+└── api/index.ts sebagai Vercel Function untuk Express API
 
 Neon
 └── PostgreSQL serverless
