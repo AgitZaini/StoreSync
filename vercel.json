@@ -3,7 +3,7 @@
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "client/dist",
   "functions": {
-    "api/[...path].ts": {
+    "app.ts": {
       "maxDuration": 30
     }
   }
