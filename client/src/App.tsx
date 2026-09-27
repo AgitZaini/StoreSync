@@ -1,15 +1,78 @@
 import { useEffect, useMemo, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
-import { LogOut } from "lucide-react";
+import type { FormEvent } from "react";
+import type { LucideIcon } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  Banknote,
+  Bell,
+  BriefcaseBusiness,
+  CalendarDays,
+  Check,
+  ClipboardCheck,
+  ClipboardList,
+  Coins,
+  Crown,
+  History,
+  KeyRound,
+  Landmark,
+  LayoutDashboard,
+  Lock,
+  Mail,
+  Menu,
+  Package,
+  PackageCheck,
+  PiggyBank,
+  Plus,
+  QrCode,
+  Receipt,
+  RefreshCw,
+  Server,
+  ShoppingCart,
+  Store,
+  TrendingUp,
+  UserPlus,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { RadialGauge, SalesTrendChart, SplitBar, WeekdayBars } from "./components/charts";
+import type { SplitSegment } from "./components/charts";
+import { NotificationMenu, SearchBox, Sidebar, UserMenu } from "./components/layout";
+import type { NavItem } from "./components/layout";
+import { buttonStyles, iconButtonClass, inputClass } from "./components/styles";
+import {
+  Avatar,
+  Card,
+  DataTable,
+  EmptyState,
+  Field,
+  Logo,
+  Notice,
+  Pill,
+  PurchaseStatusBadge,
+  StatCard,
+  StockBadge,
+} from "./components/ui";
+import type { PillTone, Trend } from "./components/ui";
 import { api } from "./lib/api";
 import { authStorage } from "./lib/auth-storage";
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatDateTime,
+  formatLongDate,
+  formatPercent,
+  getInitials,
+} from "./lib/format";
+import { getDailySales, getPaymentBreakdown, getTopProducts, getWeekdayActivity } from "./lib/sales-insights";
+import { cn } from "./lib/utils";
 import type { AuthResponse, AuthUser, MeResponse, UserRole } from "./types/auth";
 import type { DashboardSummary, DashboardSummaryResponse } from "./types/dashboard";
 import type { Deposit, DepositsResponse, ExpensesResponse, FinanceSummary, FinanceSummaryResponse, OperationalExpense } from "./types/finance";
 import type { HealthResponse } from "./types/health";
 import type { NotificationItem, NotificationsResponse } from "./types/notification";
-import type { CategoriesResponse, Product, ProductCategory, ProductsResponse, StockStatus } from "./types/product";
-import type { PurchaseRequest, PurchaseRequestsResponse, PurchaseRequestStatus } from "./types/purchase-request";
+import type { CategoriesResponse, Product, ProductCategory, ProductsResponse } from "./types/product";
+import type { PurchaseRequest, PurchaseRequestsResponse } from "./types/purchase-request";
 import type { PaymentMethod, SalesTransaction, SalesTransactionsResponse } from "./types/sales";
 
 type ApiState = "checking" | "online" | "offline";
@@ -48,25 +111,25 @@ const roleCopy: Record<UserRole, { title: string; description: string; items: st
   },
 };
 
-const roleMenus: Record<UserRole, Array<{ key: DashboardMenuKey; label: string }>> = {
+const roleMenus: Record<UserRole, Array<Omit<NavItem<DashboardMenuKey>, "badge" | "badgeTone">>> = {
   OWNER: [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "approval", label: "Approval SPP" },
-    { key: "finance", label: "Keuangan" },
-    { key: "users", label: "Pengguna" },
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
+    { key: "approval", label: "Approval SPP", icon: ClipboardCheck, group: "main" },
+    { key: "finance", label: "Keuangan", icon: Wallet, group: "manage" },
+    { key: "users", label: "Pengguna", icon: Users, group: "manage" },
   ],
   SUPERVISOR: [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "sales", label: "Penjualan" },
-    { key: "stock", label: "Stok" },
-    { key: "purchase", label: "SPP" },
-    { key: "deposit", label: "Deposit" },
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
+    { key: "sales", label: "Penjualan", icon: ShoppingCart, group: "main" },
+    { key: "stock", label: "Stok", icon: Package, group: "main" },
+    { key: "purchase", label: "SPP", icon: ClipboardList, group: "manage" },
+    { key: "deposit", label: "Deposit", icon: Landmark, group: "manage" },
   ],
   SALES: [
-    { key: "dashboard", label: "Dashboard" },
-    { key: "sales", label: "Input Penjualan" },
-    { key: "stock", label: "Stok" },
-    { key: "history", label: "Riwayat" },
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
+    { key: "sales", label: "Input Penjualan", icon: ShoppingCart, group: "main" },
+    { key: "stock", label: "Stok", icon: Package, group: "main" },
+    { key: "history", label: "Riwayat", icon: History, group: "manage" },
   ],
 };
 
@@ -86,6 +149,31 @@ const roleLabels: Record<UserRole, string> = {
   OWNER: "Pemilik",
   SUPERVISOR: "Supervisor",
   SALES: "Sales",
+};
+
+const roleIcons: Record<UserRole, LucideIcon> = {
+  OWNER: Crown,
+  SUPERVISOR: BriefcaseBusiness,
+  SALES: ShoppingCart,
+};
+
+const quickActions: Record<UserRole, { key: DashboardMenuKey; label: string; icon: LucideIcon }> = {
+  OWNER: { key: "approval", label: "Tinjau SPP", icon: ClipboardCheck },
+  SUPERVISOR: { key: "purchase", label: "Buat SPP", icon: Plus },
+  SALES: { key: "sales", label: "Catat penjualan", icon: Plus },
+};
+
+const paymentMeta: Record<PaymentMethod, { label: string; icon: LucideIcon; color: SplitSegment["color"] }> = {
+  CASH: { label: "Tunai", icon: Banknote, color: "blue" },
+  TRANSFER: { label: "Transfer", icon: ArrowRightLeft, color: "green" },
+  QRIS: { label: "QRIS", icon: QrCode, color: "orange" },
+  OTHER: { label: "Lainnya", icon: Coins, color: "gray" },
+};
+
+const alertTones = {
+  orange: "bg-orange-50 text-orange-600",
+  blue: "bg-brand-50 text-brand-600",
+  green: "bg-green-50 text-green-600",
 };
 
 function App() {
@@ -146,6 +234,9 @@ function App() {
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [activeMenu, setActiveMenu] = useState<DashboardMenuKey>("dashboard");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     api
@@ -528,105 +619,155 @@ function App() {
     await loadDashboard().catch(() => undefined);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await Promise.all([loadInventory(), loadSales(), loadPurchaseRequests(), loadFinance(), loadDashboard()]).catch(() =>
+      setProductMessage("Gagal memuat data dashboard."),
+    );
+    setIsRefreshing(false);
+  };
+
+  const apiDot = apiState === "online" ? "bg-green-500" : apiState === "offline" ? "bg-red-500" : "bg-amber-400";
+
   if (!user || !dashboard) {
     return (
-      <main className="min-h-screen bg-[#f4f7fb] text-slate-950">
-        <div className="grid min-h-screen lg:grid-cols-[41%_59%]">
-          <section className="flex bg-[#101827] px-8 py-12 text-white sm:px-14 lg:px-[108px] lg:py-[126px]">
-            <div className="flex w-full max-w-[442px] flex-col">
-              <div>
-                <h1 className="text-5xl font-bold tracking-normal sm:text-[64px] sm:leading-[1.05]">StoreSync</h1>
-                <p className="mt-5 text-2xl font-semibold leading-9 text-[#c7d7f3]">
-                  Aplikasi monitoring dan manajemen toko untuk Sales, Supervisor, dan Pemilik.
-                </p>
-              </div>
+      <main className="min-h-screen bg-canvas text-ink lg:grid lg:grid-cols-[minmax(0,44fr)_minmax(0,56fr)]">
+        <section className="relative hidden overflow-hidden bg-navy-950 px-12 py-12 text-white lg:flex xl:px-16">
+          <div className="dot-grid pointer-events-none absolute inset-0 opacity-70 [mask-image:linear-gradient(to_bottom,black,transparent_70%)]" />
+          <div className="pointer-events-none absolute -bottom-56 -left-32 size-[600px] rounded-full bg-brand-600/45 blur-[120px]" />
+          <div className="pointer-events-none absolute -right-40 top-16 size-80 rounded-full bg-brand-400/15 blur-[100px]" />
 
-              <div className="mt-16 space-y-9">
-                {demoAccounts.map((account) => (
+          <div className="relative flex w-full max-w-[460px] flex-col">
+            <Logo inverted />
+
+            <div className="mt-auto pt-16">
+              <h1 className="text-[40px] font-semibold leading-[1.1] tracking-tight xl:text-[46px]">
+                Monitoring toko dalam satu layar.
+              </h1>
+              <p className="mt-4 text-base leading-relaxed text-white/60">
+                Aplikasi monitoring dan manajemen toko untuk Sales, Supervisor, dan Pemilik.
+              </p>
+            </div>
+
+            <div className="mt-10 space-y-3">
+              {demoAccounts.map((account) => {
+                const isSelected = selectedRole === account.role;
+                const RoleIcon = roleIcons[account.role];
+
+                return (
                   <button
                     key={account.role}
                     type="button"
                     onClick={() => selectLoginRole(account.role)}
-                    className={[
-                      "w-full rounded-lg border px-5 py-4 text-left transition",
-                      selectedRole === account.role
-                        ? "border-[#5b78b4] bg-white/5"
-                        : "border-[#33435f] bg-transparent hover:border-[#4d5f7e] hover:bg-white/[0.03]",
-                    ].join(" ")}
+                    className={cn(
+                      "flex w-full items-center gap-4 rounded-2xl border p-4 text-left transition",
+                      isSelected
+                        ? "border-brand-400/60 bg-white/10 shadow-[0_0_0_4px_rgb(58_115_243/0.15)]"
+                        : "border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]",
+                    )}
                   >
-                    <span className="block text-xl font-bold text-white">{account.label}</span>
-                    <span className="mt-1 block text-base text-slate-300">{account.description}</span>
+                    <span
+                      className={cn(
+                        "grid size-11 shrink-0 place-items-center rounded-xl transition",
+                        isSelected ? "bg-linear-to-b from-brand-500 to-brand-600 shadow-button" : "bg-white/10 text-white/80",
+                      )}
+                    >
+                      <RoleIcon className="size-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-semibold">{account.label}</span>
+                      <span className="mt-0.5 block text-sm text-white/60">{account.description}</span>
+                    </span>
+                    <span
+                      className={cn(
+                        "grid size-5 shrink-0 place-items-center rounded-full border transition",
+                        isSelected ? "border-brand-400 bg-brand-500" : "border-white/25",
+                      )}
+                    >
+                      {isSelected ? <Check className="size-3" strokeWidth={3} /> : null}
+                    </span>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </section>
 
-          <section className="flex items-center justify-center px-6 py-12 sm:px-10">
-            <form
-              onSubmit={handleLogin}
-              className="w-full max-w-[512px] rounded-[18px] border border-slate-200 bg-white px-8 py-10 shadow-sm sm:px-10 sm:py-11"
-            >
-              <div>
-                <h2 className="text-[32px] font-bold leading-tight tracking-normal text-[#101827]">
-                  Masuk ke StoreSync
-                </h2>
-                <p className="mt-2 text-base font-medium text-slate-500">Gunakan akun sesuai role operasional toko.</p>
+            <p className="mt-10 text-xs text-white/40">© {new Date().getFullYear()} StoreSync</p>
+          </div>
+        </section>
+
+        <section className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-8">
+          <form
+            onSubmit={handleLogin}
+            className="w-full max-w-[440px] rounded-3xl border border-line bg-white p-6 shadow-[0_24px_48px_-24px_rgb(16_24_40/0.18)] sm:p-10"
+          >
+            <Logo className="mb-8 lg:hidden" />
+            <h2 className="text-2xl font-semibold tracking-tight text-ink">Masuk ke StoreSync</h2>
+            <p className="mt-1.5 text-sm text-muted">Gunakan akun sesuai role operasional toko.</p>
+
+            <div className="mt-8 space-y-5">
+              <div className="grid gap-1.5">
+                <span className="text-[13px] font-medium text-gray-700">Pilih role</span>
+                <div role="radiogroup" aria-label="Pilih role" className="grid grid-cols-3 gap-1 rounded-xl bg-canvas p-1">
+                  {demoAccounts.map((account) => (
+                    <button
+                      key={account.role}
+                      type="button"
+                      role="radio"
+                      aria-checked={selectedRole === account.role}
+                      onClick={() => selectLoginRole(account.role)}
+                      className={cn(
+                        "h-9 rounded-lg text-sm font-medium transition",
+                        selectedRole === account.role
+                          ? "bg-white text-ink shadow-[0_1px_3px_rgb(16_24_40/0.12)]"
+                          : "text-muted hover:text-ink",
+                      )}
+                    >
+                      {account.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              <div className="mt-12 space-y-7">
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-800">Email / Username</span>
+              <Field label="Email / Username">
+                <span className="relative block">
+                  <Mail className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" />
                   <input
                     value={email}
                     onChange={(event) => setEmail(event.target.value)}
-                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 px-4 text-base text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    className={cn(inputClass, "pl-10")}
                     placeholder="sales@storesync.id"
                   />
-                </label>
+                </span>
+              </Field>
 
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-800">Password</span>
+              <Field label="Password">
+                <span className="relative block">
+                  <Lock className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-subtle" />
                   <input
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     type="password"
-                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 px-4 text-base text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+                    className={cn(inputClass, "pl-10")}
                     placeholder="••••••••"
                   />
-                </label>
+                </span>
+              </Field>
 
-                <label className="block">
-                  <span className="text-sm font-bold text-slate-800">Pilih role</span>
-                  <select
-                    value={selectedRole}
-                    onChange={(event) => selectLoginRole(event.target.value as UserRole)}
-                    className="mt-2 h-12 w-full rounded-lg border border-slate-200 bg-white px-4 text-base text-slate-500 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-                  >
-                    {demoAccounts.map((account) => (
-                      <option key={account.role} value={account.role}>
-                        {account.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+              {authMessage ? <Notice tone="red">{authMessage}</Notice> : null}
 
-                {authMessage ? <p className="text-sm font-semibold text-rose-600">{authMessage}</p> : null}
+              <button disabled={isLoading} className={cn(buttonStyles.primary, "h-11 w-full")}>
+                {isLoading ? "Memproses..." : "Masuk"}
+                {isLoading ? null : <ArrowRight />}
+              </button>
+            </div>
 
-                <button
-                  disabled={isLoading}
-                  className="h-12 w-full rounded-lg bg-[#2f65e7] px-5 text-left text-base font-bold text-white transition hover:bg-[#2558cf] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isLoading ? "Memproses..." : "Masuk"}
-                </button>
-              </div>
-
-              <p className="mt-6 text-base font-medium text-slate-500">
-                Lupa password? Hubungi Pemilik atau admin toko.
-              </p>
-            </form>
-          </section>
-        </div>
+            <p className="mt-6 text-center text-sm text-muted">Lupa password? Hubungi Pemilik atau admin toko.</p>
+            <p className="mt-6 flex items-center justify-center gap-2 text-xs text-subtle">
+              <span className={cn("size-2 rounded-full", apiDot)} />
+              {statusLabel} · {serviceName}
+            </p>
+          </form>
+        </section>
       </main>
     );
   }
@@ -634,15 +775,15 @@ function App() {
   const availableMenus = roleMenus[user.role];
   const currentMenu = availableMenus.some((menu) => menu.key === activeMenu) ? activeMenu : "dashboard";
   const roleLabel = roleLabels[user.role];
-  const pageTitle = currentMenu === "dashboard" ? `${roleLabel} Dashboard` : menuTitles[currentMenu];
+  const pageTitle = currentMenu === "dashboard" ? dashboard.title : menuTitles[currentMenu];
   const waitingRequests = purchaseRequests.filter((request) => request.status === "WAITING_APPROVAL");
   const lowStockProducts = products.filter((product) => product.stockStatus !== "SAFE");
   const latestTransactions = transactions.slice(0, 5);
   const salesTotal = dashboardSummary?.todaySalesTotal ?? 0;
   const monthlySales = dashboardSummary?.monthlySalesTotal ?? 0;
+  const monthlySalesCount = dashboardSummary?.monthlySalesCount ?? 0;
   const grossProfit = financeSummary?.grossProfit ?? Math.max(monthlySales * 0.31, 0);
   const cashBalance = financeSummary?.cashBalance ?? 0;
-  const chartBars = [46, 60, 55, 74, 82, 78, 92, 100, 95, 108];
   const userRows = [
     { name: "Rani Supervisor", email: "rani@storesync.id", role: "Supervisor", status: "Aktif", lastLogin: "Hari ini" },
     { name: "Alya Sales", email: "alya@storesync.id", role: "Sales", status: "Aktif", lastLogin: "10 menit lalu" },
@@ -650,790 +791,670 @@ function App() {
     { name: "Citra Sales", email: "citra@storesync.id", role: "Sales", status: "Nonaktif", lastLogin: "7 hari lalu" },
   ];
 
+  // Charts are derived from the latest transactions returned by /sales (max 100).
+  const dailySales = getDailySales(transactions, 30);
+  const hasRecentSales = dailySales.some((day) => day.count > 0);
+  const weekdayActivity = getWeekdayActivity(transactions);
+  const paymentSegments: SplitSegment[] = getPaymentBreakdown(transactions)
+    .filter((payment) => payment.method !== "OTHER" || payment.count > 0)
+    .map((payment) => ({
+      ...paymentMeta[payment.method],
+      value: payment.count,
+      caption: formatCompactCurrency(payment.total),
+    }));
+  const topProducts = getTopProducts(transactions, 5);
+  const todaySales = user.role === "SALES" ? dashboardSummary?.mySalesTodayTotal ?? 0 : salesTotal;
+  const todaySalesCount = user.role === "SALES" ? dashboardSummary?.mySalesTodayCount ?? 0 : dashboardSummary?.todaySalesCount ?? 0;
+  const yesterdaySales = dailySales[dailySales.length - 2]?.total ?? 0;
+  const salesTrend: Trend | undefined =
+    yesterdaySales > 0
+      ? {
+          value: Math.abs(((todaySales - yesterdaySales) / yesterdaySales) * 100),
+          direction: todaySales >= yesterdaySales ? "up" : "down",
+        }
+      : undefined;
+  const profitMargin =
+    financeSummary && financeSummary.salesTotal > 0 ? (financeSummary.grossProfit / financeSummary.salesTotal) * 100 : null;
+  const stockHealth = products.length > 0 ? ((products.length - lowStockProducts.length) / products.length) * 100 : 0;
+  const unreadNotifications = notifications.filter((notification) => !notification.readAt).length;
+  const hasMenu = (key: DashboardMenuKey) => availableMenus.some((menu) => menu.key === key);
+  const quickAction = quickActions[user.role];
+  const menuBadges: Partial<Record<DashboardMenuKey, number>> = {
+    approval: waitingRequests.length,
+    purchase: waitingRequests.length,
+    stock: lowStockProducts.length,
+  };
+  const navItems: NavItem<DashboardMenuKey>[] = availableMenus.map((menu) => ({
+    ...menu,
+    badge: menuBadges[menu.key],
+    badgeTone: menu.key === "stock" ? "orange" : "green",
+  }));
+  const alerts = [
+    {
+      area: "Stok",
+      title: lowStockProducts[0] ? `${lowStockProducts[0].name} perlu dicek` : "Semua stok aman",
+      impact: "Penjualan",
+      icon: Package,
+      tone: "orange" as const,
+    },
+    { area: "Kas", title: `Saldo ${formatCurrency(cashBalance)}`, impact: "Keuangan", icon: Wallet, tone: "blue" as const },
+    {
+      area: "Notifikasi",
+      title: `${unreadNotifications} belum dibaca`,
+      impact: "Operasional",
+      icon: Bell,
+      tone: "green" as const,
+    },
+  ];
+
+  const selectMenu = (key: DashboardMenuKey) => {
+    setActiveMenu(key);
+    setMobileNavOpen(false);
+  };
+
   return (
-    <main className="min-h-screen bg-[#f4f7fb] text-[#121a2d]">
-      <div className="grid min-h-screen lg:grid-cols-[280px_1fr]">
-        <aside className="flex bg-[#101827] px-6 py-9 text-white lg:min-h-screen lg:flex-col">
-          <div className="flex w-full flex-col">
-            <div>
-              <h1 className="text-3xl font-bold tracking-normal">StoreSync</h1>
-              <p className="mt-1 text-sm text-slate-300">Manajemen toko terpadu</p>
-              <div className="mt-5 h-px bg-slate-300/70" />
-            </div>
+    <div className="min-h-screen bg-canvas text-ink">
+      <Sidebar
+        items={navItems}
+        activeKey={currentMenu}
+        onSelect={selectMenu}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+        statusRows={[
+          { icon: Server, label: `${statusLabel} · ${serviceName}`, dot: apiDot },
+          { icon: Store, label: "Toko Utama aktif", dot: "bg-green-500" },
+        ]}
+        account={{ title: `Mode ${roleLabel}`, description: `${user.name} · akses sesuai role PRD` }}
+        onLogout={handleLogout}
+      />
 
-            <nav className="mt-8 space-y-2">
-              {availableMenus.map((menu) => {
-                const isActive = menu.key === currentMenu;
-
-                return (
-                  <button
-                    key={menu.key}
-                    type="button"
-                    onClick={() => setActiveMenu(menu.key)}
-                    className={[
-                      "flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm font-bold transition",
-                      isActive ? "bg-[#2d5be3] text-white" : "text-slate-300 hover:bg-white/5 hover:text-white",
-                    ].join(" ")}
-                  >
-                    <span className={["h-5 w-5 rounded-md", isActive ? "bg-white" : "bg-slate-700"].join(" ")} />
-                    {menu.label}
-                  </button>
-                );
-              })}
-            </nav>
-
-            <div className="mt-8 rounded-lg border border-slate-700 p-4 lg:mt-auto">
-              <p className="text-sm text-slate-400">Mode akun</p>
-              <p className="mt-2 text-xl font-bold">{roleLabel}</p>
-              <p className="mt-1 text-sm text-slate-400">Akses sesuai role PRD</p>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="mt-4 inline-flex h-9 items-center gap-2 rounded-md border border-slate-600 px-3 text-sm font-bold text-slate-200 hover:bg-white/5"
-              >
-                <LogOut className="h-4 w-4" />
-                Logout
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <section className="min-w-0">
-          <header className="flex min-h-20 flex-col gap-3 border-b border-slate-200 bg-white px-6 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-9">
-            <h2 className="text-2xl font-bold tracking-normal">{pageTitle}</h2>
-            <div className="flex flex-wrap items-center gap-3 text-sm font-bold">
-              <span className="rounded-full bg-slate-100 px-4 py-2 text-slate-500">
-                {statusLabel} · {serviceName}
-              </span>
-              <span className="rounded-full bg-emerald-100 px-5 py-2 text-emerald-700">Toko Utama aktif</span>
-              <span className="rounded-full bg-blue-100 px-5 py-2 text-blue-700">{roleLabel}</span>
-              <button
-                type="button"
-                onClick={handleMarkAllNotificationsRead}
-                className="rounded-md px-3 py-2 text-slate-500 hover:bg-slate-50"
-              >
-                Notifikasi
-              </button>
-            </div>
-          </header>
-
-          <div className="space-y-8 p-6 lg:p-9">
-            {currentMenu === "dashboard" ? (
-              <>
-                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-                  <DashboardCard dot="bg-emerald-600" label={user.role === "SALES" ? "Penjualan Saya Hari Ini" : "Pendapatan Hari Ini"} value={formatCurrency(user.role === "SALES" ? dashboardSummary?.mySalesTodayTotal ?? 0 : salesTotal)} helper={user.role === "SALES" ? `${dashboardSummary?.mySalesTodayCount ?? 0} transaksi` : "Naik dari data aktif"} helperTone="text-emerald-700" />
-                  <DashboardCard dot="bg-blue-600" label="Laba Kotor Bulan Ini" value={formatCurrency(grossProfit)} helper="Margin operasional" helperTone="text-blue-700" />
-                  <DashboardCard dot="bg-teal-700" label="Kas Toko" value={formatCurrency(cashBalance)} helper={`${deposits.length} deposit tercatat`} helperTone="text-teal-700" />
-                  <DashboardCard dot="bg-amber-600" label={user.role === "SALES" ? "Stok Perlu Dicek" : "SPP Menunggu"} value={`${user.role === "SALES" ? lowStockProducts.length : waitingRequests.length}`} helper={user.role === "SALES" ? "Prioritas penjualan" : "Butuh keputusan"} helperTone="text-amber-700" />
-                </div>
-
-                <div className="grid gap-8 xl:grid-cols-[1.25fr_0.875fr]">
-                  <Panel title={user.role === "SALES" ? "Performa penjualan" : "Tren penjualan 30 hari"}>
-                    <div className="flex h-56 items-end gap-3 border-b border-slate-200 px-4 pb-0">
-                      {chartBars.map((height, index) => (
-                        <div
-                          key={index}
-                          className="w-full rounded-t-md bg-[#2f65e7]"
-                          style={{ height: `${height}px` }}
-                        />
-                      ))}
-                    </div>
-                    <p className="mt-4 text-sm font-medium text-slate-500">7 hari terakhir</p>
-                  </Panel>
-
-                  <Panel title={user.role === "OWNER" ? "SPP menunggu approval" : "Aktivitas terbaru"}>
-                    <DataTable
-                      headers={user.role === "OWNER" ? ["SPP", "Supplier", "Estimasi", "Status"] : ["No", "Sales", "Total", "Waktu"]}
-                      rows={(user.role === "OWNER" ? waitingRequests.slice(0, 4) : latestTransactions).map((item) =>
-                        user.role === "OWNER"
-                          ? [
-                              (item as PurchaseRequest).requestNo,
-                              (item as PurchaseRequest).supplier ?? "Tanpa supplier",
-                              formatCurrency((item as PurchaseRequest).items.reduce((sum, row) => sum + Number(row.estimatedPrice), 0)),
-                              <PurchaseStatusBadge key={(item as PurchaseRequest).id} status={(item as PurchaseRequest).status} />,
-                            ]
-                          : [
-                              (item as SalesTransaction).transactionNo,
-                              (item as SalesTransaction).sales.name,
-                              formatCurrency((item as SalesTransaction).total),
-                              formatDateTime((item as SalesTransaction).transactionAt),
-                            ],
-                      )}
-                    />
-                  </Panel>
-                </div>
-
-                <div className="grid gap-8 xl:grid-cols-2">
-                  <Panel title={user.role === "SALES" ? "Produk tersedia" : "Ringkasan keuangan"}>
-                    {user.role === "SALES" ? (
-                      <DataTable
-                        headers={["Produk", "SKU", "Stok", "Status"]}
-                        rows={products.slice(0, 5).map((product) => [
-                          product.name,
-                          product.sku,
-                          `${product.stockQuantity} ${product.unit}`,
-                          <StockBadge key={product.id} status={product.stockStatus} />,
-                        ])}
-                      />
-                    ) : (
-                      <DataTable
-                        headers={["Kategori", "Masuk", "Keluar", "Laba"]}
-                        rows={[
-                          ["Hari ini", formatCurrency(salesTotal), formatCurrency(financeSummary?.totalExpense ?? 0), formatCurrency(Math.max(salesTotal - (financeSummary?.totalExpense ?? 0), 0))],
-                          ["Bulan ini", formatCurrency(monthlySales), formatCurrency(financeSummary?.totalExpense ?? 0), formatCurrency(grossProfit)],
-                          ["Deposit", formatCurrency(financeSummary?.depositTotal ?? 0), "-", formatCurrency(cashBalance)],
-                        ]}
-                      />
-                    )}
-                  </Panel>
-
-                  <Panel title="Alert prioritas">
-                    <DataTable
-                      headers={["Area", "Masalah", "Dampak"]}
-                      rows={[
-                        ["Stok", `${lowStockProducts[0]?.name ?? "Produk"} perlu dicek`, "Penjualan"],
-                        ["Kas", `Saldo ${formatCurrency(cashBalance)}`, "Keuangan"],
-                        ["Notifikasi", `${notifications.filter((notification) => !notification.readAt).length} belum dibaca`, "Operasional"],
-                      ]}
-                    />
-                  </Panel>
-                </div>
-              </>
-            ) : null}
-
-            {currentMenu === "approval" ? (
-              <>
-                <div className="grid gap-8 xl:grid-cols-[1.2fr_0.9fr]">
-                  <Panel title="Daftar approval">
-                    <DataTable
-                      headers={["SPP", "Supplier", "Estimasi", "Status"]}
-                      rows={purchaseRequests.map((request) => [
-                        request.requestNo,
-                        request.supplier ?? "Tanpa supplier",
-                        formatCurrency(request.items.reduce((sum, item) => sum + Number(item.estimatedPrice), 0)),
-                        <PurchaseStatusBadge key={request.id} status={request.status} />,
-                      ])}
-                    />
-                  </Panel>
-
-                  <Panel title={waitingRequests[0] ? `${waitingRequests[0].requestNo} · ${waitingRequests[0].supplier ?? "Pengajuan stok"}` : "Detail SPP"}>
-                    {waitingRequests[0] ? (
-                      <div>
-                        <p className="mb-5 text-sm font-medium text-slate-500">
-                          Diajukan {formatDateTime(waitingRequests[0].createdAt)}
-                        </p>
-                        <div className="space-y-3">
-                          {waitingRequests[0].items.map((item) => (
-                            <div key={item.id} className="grid grid-cols-[1fr_auto_auto] gap-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                              <span className="font-bold">{item.product.name}</span>
-                              <span className="text-slate-500">{item.quantity} {item.product.unit}</span>
-                              <span className="font-bold text-blue-700">{formatCurrency(item.estimatedPrice)}</span>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mt-16 flex flex-wrap gap-4">
-                          <button type="button" onClick={() => handleOwnerDecision(waitingRequests[0], "reject")} className="h-11 rounded-lg bg-red-600 px-8 text-sm font-bold text-white">Tolak</button>
-                          <button type="button" onClick={() => handleOwnerDecision(waitingRequests[0], "approve")} className="h-11 rounded-lg bg-[#2f65e7] px-8 text-sm font-bold text-white">Setujui</button>
-                          <button type="button" onClick={() => handleOwnerDecision(waitingRequests[0], "request-revision")} className="h-11 rounded-lg border border-slate-200 px-8 text-sm font-bold">Revisi</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-500">Tidak ada SPP yang menunggu approval.</p>
-                    )}
-                  </Panel>
-                </div>
-
-                <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
-                  <DashboardCard dot="bg-emerald-600" label="Pemasukan" value={formatCurrency(financeSummary?.salesTotal ?? monthlySales)} helper="Penjualan bulan ini" helperTone="text-emerald-700" />
-                  <DashboardCard dot="bg-amber-600" label="Pengeluaran" value={formatCurrency(financeSummary?.totalExpense ?? 0)} helper="Stok + operasional" helperTone="text-amber-700" />
-                  <DashboardCard dot="bg-blue-600" label="Laba Kotor" value={formatCurrency(grossProfit)} helper="Margin berjalan" helperTone="text-blue-700" />
-                  <DashboardCard dot="bg-teal-700" label="Saldo Kas" value={formatCurrency(cashBalance)} helper="Kas terkini" helperTone="text-teal-700" />
-                </div>
-              </>
-            ) : null}
-
-            {currentMenu === "users" ? (
-              <>
-                <div className="flex flex-wrap gap-4">
-                  <button className="h-11 rounded-lg bg-[#2f65e7] px-5 text-sm font-bold text-white">Tambah Pengguna</button>
-                  <button className="h-11 rounded-lg border border-slate-200 bg-white px-5 text-sm font-bold">Role & Akses</button>
-                </div>
-                <Panel title="Daftar pengguna">
-                  <DataTable
-                    headers={["Nama", "Email", "Role", "Status", "Login terakhir"]}
-                    rows={userRows.map((row) => [
-                      row.name,
-                      row.email,
-                      row.role,
-                      <span key={row.email} className={["inline-flex min-w-32 justify-center rounded-full px-4 py-1 text-sm font-bold", row.status === "Aktif" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"].join(" ")}>{row.status}</span>,
-                      row.lastLogin,
-                    ])}
-                  />
-                </Panel>
-                <Panel title="Ringkasan akses per role">
-                  <div className="space-y-6 text-base">
-                    <RoleAccessBadge label="Pemilik" tone="bg-violet-100 text-violet-700" text="Semua fitur, approval SPP, laporan lengkap, manajemen pengguna" />
-                    <RoleAccessBadge label="Supervisor" tone="bg-blue-100 text-blue-700" text="Monitor penjualan, stok, SPP, deposit, laporan dasar" />
-                    <RoleAccessBadge label="Sales" tone="bg-emerald-100 text-emerald-700" text="Input penjualan, lihat stok, target, riwayat sendiri" />
-                  </div>
-                </Panel>
-              </>
-            ) : null}
-
-            {currentMenu === "finance" || currentMenu === "deposit" ? (
-              <div className="grid gap-8 xl:grid-cols-[0.9fr_1.1fr]">
-                <Panel title={currentMenu === "deposit" ? "Catat deposit" : "Input keuangan"}>
-                  {financeMessage ? <p className="mb-3 text-sm font-bold text-emerald-700">{financeMessage}</p> : null}
-                  <div className="grid gap-5">
-                    <form onSubmit={handleCreateDeposit} className="grid gap-3">
-                      <label className="grid gap-2">
-                        <span className="text-sm font-bold text-slate-700">Jumlah deposit</span>
-                        <input value={depositForm.amount} onChange={(event) => setDepositForm((current) => ({ ...current, amount: event.target.value }))} placeholder="Contoh: 500000" type="number" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                      </label>
-                      <label className="grid gap-2">
-                        <span className="text-sm font-bold text-slate-700">Tujuan kas</span>
-                        <input value={depositForm.destination} onChange={(event) => setDepositForm((current) => ({ ...current, destination: event.target.value }))} placeholder="Kas toko / bank tujuan" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                      </label>
-                      <label className="grid gap-2">
-                        <span className="text-sm font-bold text-slate-700">Catatan deposit</span>
-                        <input value={depositForm.note} onChange={(event) => setDepositForm((current) => ({ ...current, note: event.target.value }))} placeholder="Opsional" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                      </label>
-                      <button className="h-11 rounded-lg bg-[#2f65e7] text-sm font-bold text-white">Simpan deposit</button>
-                    </form>
-                    {currentMenu === "finance" ? (
-                      <form onSubmit={handleCreateExpense} className="grid gap-3 border-t border-slate-100 pt-5">
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-slate-700">Nama biaya</span>
-                          <input value={expenseForm.title} onChange={(event) => setExpenseForm((current) => ({ ...current, title: event.target.value }))} placeholder="Contoh: listrik toko" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-slate-700">Jumlah biaya</span>
-                          <input value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: event.target.value }))} placeholder="Contoh: 250000" type="number" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                        </label>
-                        <button className="h-11 rounded-lg bg-slate-900 text-sm font-bold text-white">Simpan biaya</button>
-                      </form>
-                    ) : null}
-                  </div>
-                </Panel>
-                <Panel title="Breakdown laporan">
-                  <DataTable
-                    headers={["Kategori", "Pemasukan", "Pengeluaran", "Laba"]}
-                    rows={[
-                      ["Penjualan", formatCurrency(financeSummary?.salesTotal ?? 0), "-", formatCurrency(financeSummary?.grossProfit ?? 0)],
-                      ["Pembelian stok", "-", formatCurrency(financeSummary?.purchaseExpenseTotal ?? 0), "-"],
-                      ["Operasional", "-", formatCurrency(financeSummary?.operationalExpenseTotal ?? 0), "-"],
-                      ["Deposit", formatCurrency(financeSummary?.depositTotal ?? 0), "-", formatCurrency(cashBalance)],
-                    ]}
-                  />
-                  <div className="mt-6 border-t border-slate-100 pt-5">
-                    <p className="mb-3 text-sm font-bold text-slate-800">Biaya terbaru</p>
-                    <div className="space-y-2">
-                      {expenses.slice(0, 4).map((expense) => (
-                        <div key={expense.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                          <span className="font-bold text-slate-800">{expense.title}</span>
-                          <span className="text-slate-500">{formatCurrency(expense.amount)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </Panel>
-              </div>
-            ) : null}
-
-            {currentMenu === "sales" ? (
-              <div className="grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">
-                <Panel title="Catat transaksi">
-                  {salesMessage ? <p className="mb-3 text-sm font-bold text-emerald-700">{salesMessage}</p> : null}
-                  <form onSubmit={handleCreateSale} className="grid gap-3">
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Produk yang dijual</span>
-                      <select value={salesForm.productId} onChange={(event) => setSalesForm((current) => ({ ...current, productId: event.target.value }))} className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500">
-                        <option value="">Pilih produk</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id} disabled={product.stockQuantity <= 0}>{product.name} · stok {product.stockQuantity}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Jumlah terjual</span>
-                      <input value={salesForm.quantity} onChange={(event) => setSalesForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Masukkan jumlah item" type="number" min={1} className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Nama pelanggan</span>
-                      <input value={salesForm.customerName} onChange={(event) => setSalesForm((current) => ({ ...current, customerName: event.target.value }))} placeholder="Opsional" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                    </label>
-                    <button className="h-11 rounded-lg bg-[#2f65e7] text-sm font-bold text-white">Simpan transaksi</button>
-                  </form>
-                </Panel>
-                <Panel title="Transaksi terbaru">
-                  <DataTable headers={["No", "Sales", "Total", "Waktu"]} rows={latestTransactions.map((transaction) => [transaction.transactionNo, transaction.sales.name, formatCurrency(transaction.total), formatDateTime(transaction.transactionAt)])} />
-                </Panel>
-              </div>
-            ) : null}
-
-            {currentMenu === "stock" ? (
-              <div className="grid gap-8 xl:grid-cols-[1.2fr_0.8fr]">
-                <Panel title="Daftar stok produk">
-                  {productMessage ? <p className="mb-3 text-sm font-bold text-emerald-700">{productMessage}</p> : null}
-                  <DataTable
-                    headers={["Produk", "Kategori", "Stok", "Minimum", "Status"]}
-                    rows={products.map((product) => [
-                      product.name,
-                      product.category?.name ?? "Tanpa kategori",
-                      `${product.stockQuantity} ${product.unit}`,
-                      `${product.minimumStock}`,
-                      <span key={product.id} className="inline-flex items-center gap-3">
-                        <StockBadge status={product.stockStatus} />
-                        {canManageStock ? (
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustStock(product)}
-                            className="rounded-md border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700"
-                          >
-                            Adjust
-                          </button>
-                        ) : null}
-                      </span>,
-                    ])}
-                  />
-                </Panel>
-
-                {canManageStock ? (
-                  <Panel title="Kelola produk">
-                    <div className="grid gap-5">
-                      <form onSubmit={handleCreateCategory} className="grid gap-3">
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-slate-700">Nama kategori produk</span>
-                          <input
-                            value={categoryName}
-                            onChange={(event) => setCategoryName(event.target.value)}
-                            placeholder="Contoh: Minuman"
-                            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                          />
-                        </label>
-                        <button className="h-11 rounded-lg bg-slate-900 text-sm font-bold text-white">
-                          Simpan kategori
-                        </button>
-                      </form>
-
-                      <form onSubmit={handleCreateProduct} className="grid gap-3 border-t border-slate-100 pt-5">
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-slate-700">Nama produk</span>
-                          <input
-                            value={productForm.name}
-                            onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))}
-                            placeholder="Contoh: Cup 16oz"
-                            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                          />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-slate-700">SKU produk</span>
-                          <input
-                            value={productForm.sku}
-                            onChange={(event) => setProductForm((current) => ({ ...current, sku: event.target.value }))}
-                            placeholder="Kode unik produk"
-                            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                          />
-                        </label>
-                        <label className="grid gap-2">
-                          <span className="text-sm font-bold text-slate-700">Kategori produk</span>
-                          <select
-                            value={productForm.categoryId}
-                            onChange={(event) =>
-                              setProductForm((current) => ({ ...current, categoryId: event.target.value }))
-                            }
-                            className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                          >
-                            <option value="">Tanpa kategori</option>
-                            {categories.map((category) => (
-                              <option key={category.id} value={category.id}>
-                                {category.name}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <div className="grid grid-cols-2 gap-3">
-                          <label className="grid gap-2">
-                            <span className="text-sm font-bold text-slate-700">Harga jual</span>
-                            <input
-                              value={productForm.sellingPrice}
-                              onChange={(event) =>
-                                setProductForm((current) => ({ ...current, sellingPrice: event.target.value }))
-                              }
-                              placeholder="Rp"
-                              type="number"
-                              className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                            />
-                          </label>
-                          <label className="grid gap-2">
-                            <span className="text-sm font-bold text-slate-700">Stok awal</span>
-                            <input
-                              value={productForm.stockQuantity}
-                              onChange={(event) =>
-                                setProductForm((current) => ({ ...current, stockQuantity: event.target.value }))
-                              }
-                              placeholder="Jumlah stok"
-                              type="number"
-                              className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500"
-                            />
-                          </label>
-                        </div>
-                        <button className="h-11 rounded-lg bg-[#2f65e7] text-sm font-bold text-white">
-                          Tambah produk
-                        </button>
-                      </form>
-                    </div>
-                  </Panel>
-                ) : null}
-              </div>
-            ) : null}
-
-            {currentMenu === "purchase" ? (
-              <div className="grid gap-8 xl:grid-cols-[0.85fr_1.15fr]">
-                <Panel title="Buat SPP">
-                  {purchaseMessage ? <p className="mb-3 text-sm font-bold text-emerald-700">{purchaseMessage}</p> : null}
-                  <form onSubmit={handleCreatePurchaseRequest} className="grid gap-3">
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Produk yang diminta</span>
-                      <select value={purchaseForm.productId} onChange={(event) => setPurchaseForm((current) => ({ ...current, productId: event.target.value }))} className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500">
-                        <option value="">Pilih produk</option>
-                        {products.map((product) => <option key={product.id} value={product.id}>{product.name} · stok {product.stockQuantity}</option>)}
-                      </select>
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Jumlah pembelian</span>
-                      <input value={purchaseForm.quantity} onChange={(event) => setPurchaseForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Masukkan jumlah item" type="number" min={1} className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Estimasi harga</span>
-                      <input value={purchaseForm.estimatedPrice} onChange={(event) => setPurchaseForm((current) => ({ ...current, estimatedPrice: event.target.value }))} placeholder="Total estimasi biaya" type="number" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                    </label>
-                    <label className="grid gap-2">
-                      <span className="text-sm font-bold text-slate-700">Supplier</span>
-                      <input value={purchaseForm.supplier} onChange={(event) => setPurchaseForm((current) => ({ ...current, supplier: event.target.value }))} placeholder="Nama supplier" className="h-11 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-500" />
-                    </label>
-                    <button className="h-11 rounded-lg bg-[#2f65e7] text-sm font-bold text-white">Kirim SPP</button>
-                  </form>
-                </Panel>
-                <Panel title="Daftar SPP">
-                  <DataTable headers={["SPP", "Supplier", "Estimasi", "Status"]} rows={purchaseRequests.map((request) => [request.requestNo, request.supplier ?? "Tanpa supplier", formatCurrency(request.items.reduce((sum, item) => sum + Number(item.estimatedPrice), 0)), <PurchaseStatusBadge key={request.id} status={request.status} />])} />
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {purchaseRequests
-                      .filter((request) => request.status === "APPROVED")
-                      .map((request) => (
-                        <button
-                          key={request.id}
-                          type="button"
-                          onClick={() => handleRealizePurchaseRequest(request)}
-                          className="h-9 rounded-lg bg-slate-900 px-4 text-sm font-bold text-white"
-                        >
-                          Realisasi {request.requestNo}
-                        </button>
-                      ))}
-                  </div>
-                </Panel>
-              </div>
-            ) : null}
-
-            {currentMenu === "history" ? (
-              <Panel title="Riwayat penjualan saya">
-                <DataTable headers={["No", "Produk", "Total", "Waktu"]} rows={transactions.map((transaction) => [transaction.transactionNo, transaction.items.map((item) => item.product.name).join(", "), formatCurrency(transaction.total), formatDateTime(transaction.transactionAt)])} />
-              </Panel>
-            ) : null}
-          </div>
-        </section>
-      </div>
-    </main>
-  );
-
-  /*
-  return (
-    <main className="min-h-screen bg-slate-50 text-slate-950">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-5 py-6 sm:px-8">
-        <header className="flex flex-col gap-4 border-b border-slate-200 pb-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-medium text-emerald-700">StoreSync</p>
-            <h1 className="text-2xl font-semibold tracking-normal">Auth & RBAC foundation</h1>
-          </div>
-          <div className="flex w-fit items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm">
-            <span
-              className={[
-                "h-2.5 w-2.5 rounded-full",
-                apiState === "online" ? "bg-emerald-500" : apiState === "offline" ? "bg-rose-500" : "bg-amber-500",
-              ].join(" ")}
+      <div className={cn("min-w-0 transition-[padding] duration-200", sidebarCollapsed ? "lg:pl-[84px]" : "lg:pl-[264px]")}>
+        <header className="sticky top-0 z-30 border-b border-line bg-white/85 backdrop-blur-md">
+          <div className="flex h-[72px] items-center gap-3 px-4 sm:px-6 lg:px-8">
+            <button
+              type="button"
+              onClick={() => setMobileNavOpen(true)}
+              className={cn(iconButtonClass, "lg:hidden")}
+              aria-label="Buka menu"
+            >
+              <Menu className="size-[18px]" />
+            </button>
+            <SearchBox
+              menus={navItems}
+              products={products}
+              productMenuKey={hasMenu("stock") ? "stock" : null}
+              onNavigate={selectMenu}
             />
-            <span className="font-medium">{statusLabel}</span>
+            <div className="ml-auto flex items-center gap-2.5">
+              <NotificationMenu notifications={notifications} onMarkAllRead={handleMarkAllNotificationsRead} />
+              <UserMenu
+                name={user.name}
+                email={user.email}
+                roleLabel={roleLabel}
+                initials={getInitials(user.name)}
+                onLogout={handleLogout}
+              />
+            </div>
           </div>
         </header>
 
-        <section className="grid flex-1 gap-6 py-8 lg:grid-cols-[1fr_0.95fr]">
-          <div className="flex flex-col justify-center">
-            <div className="max-w-3xl">
-              <div className="mb-5 inline-flex items-center gap-2 rounded-md bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-800">
-                <BadgeCheck className="h-4 w-4" />
-                Phase 1 active
-              </div>
-              <h2 className="text-4xl font-semibold tracking-normal text-slate-950 sm:text-5xl">
-                Role-based access is now wired from API to dashboard.
-              </h2>
-              <p className="mt-4 max-w-2xl text-base leading-7 text-slate-600">
-                Login with seeded accounts to preview how Pemilik, Supervisor, and Sales land on different operational
-                dashboards.
+        <main className="mx-auto w-full max-w-[1480px] space-y-5 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold tracking-tight text-ink">{pageTitle}</h1>
+              <p className="mt-1 text-sm text-muted">
+                {currentMenu === "dashboard" ? dashboard.description : `${roleLabel} · Toko Utama`}
               </p>
             </div>
-
-            <div className="mt-8 grid gap-3 sm:grid-cols-3">
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                <ShieldCheck className="mb-3 h-5 w-5 text-emerald-700" />
-                <p className="text-sm font-semibold">JWT Auth</p>
-                <p className="mt-1 text-sm text-slate-600">Access and refresh token flow</p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                <UserRoundCog className="mb-3 h-5 w-5 text-emerald-700" />
-                <p className="text-sm font-semibold">RBAC</p>
-                <p className="mt-1 text-sm text-slate-600">Owner, supervisor, sales</p>
-              </div>
-              <div className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-                <Boxes className="mb-3 h-5 w-5 text-emerald-700" />
-                <p className="text-sm font-semibold">Prisma</p>
-                <p className="mt-1 text-sm text-slate-600">Seeded users and tokens</p>
-              </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-white px-3.5 text-sm font-medium text-ink shadow-card">
+                <CalendarDays className="size-4 text-muted" />
+                {formatLongDate(new Date())}
+              </span>
+              <button type="button" onClick={handleRefresh} disabled={isRefreshing} className={buttonStyles.secondary}>
+                <RefreshCw className={cn(isRefreshing && "animate-spin")} />
+                Muat ulang
+              </button>
+              {currentMenu !== quickAction.key ? (
+                <button type="button" onClick={() => selectMenu(quickAction.key)} className={buttonStyles.primary}>
+                  <quickAction.icon />
+                  {quickAction.label}
+                </button>
+              ) : null}
             </div>
           </div>
 
-          <aside className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-            {user && dashboard ? (
-              <div>
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="rounded-md bg-slate-900 p-2 text-white">
-                      <ChartNoAxesCombined className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold">{dashboard.title}</p>
-                      <p className="text-sm text-slate-500">{user.name}</p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleLogout}
-                    className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                  </button>
-                </div>
+          {currentMenu === "dashboard" ? (
+            <>
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  label={user.role === "SALES" ? "Penjualan Saya Hari Ini" : "Pendapatan Hari Ini"}
+                  value={formatCompactCurrency(todaySales)}
+                  title={formatCurrency(todaySales)}
+                  icon={TrendingUp}
+                  trend={salesTrend}
+                  caption={
+                    yesterdaySales > 0
+                      ? `vs. ${formatCompactCurrency(yesterdaySales)} kemarin`
+                      : `${todaySalesCount} transaksi hari ini`
+                  }
+                />
+                <StatCard
+                  label="Laba Kotor Bulan Ini"
+                  value={formatCompactCurrency(grossProfit)}
+                  title={formatCurrency(grossProfit)}
+                  icon={PiggyBank}
+                  trend={profitMargin === null ? undefined : { label: `margin ${formatPercent(profitMargin)}`, tone: "blue" }}
+                  caption="Margin operasional"
+                />
+                <StatCard
+                  label="Kas Toko"
+                  value={formatCompactCurrency(cashBalance)}
+                  title={formatCurrency(cashBalance)}
+                  icon={Wallet}
+                  caption={`${deposits.length} deposit tercatat`}
+                />
+                {user.role === "SALES" ? (
+                  <StatCard
+                    label="Stok Perlu Dicek"
+                    value={`${lowStockProducts.length}`}
+                    icon={Package}
+                    trend={lowStockProducts.length > 0 ? { label: "cek stok", tone: "orange" } : undefined}
+                    caption="Prioritas penjualan"
+                  />
+                ) : (
+                  <StatCard
+                    label="SPP Menunggu"
+                    value={`${waitingRequests.length}`}
+                    icon={ClipboardList}
+                    trend={waitingRequests.length > 0 ? { label: "perlu keputusan", tone: "orange" } : undefined}
+                    caption="Butuh keputusan"
+                  />
+                )}
+              </div>
 
-                <p className="mt-4 text-sm leading-6 text-slate-600">{dashboard.description}</p>
-
-                <div className="mt-5 space-y-3">
-                  {dashboard.items.map((item) => (
-                    <div key={item} className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2">
-                      <span className="text-sm font-medium">{item}</span>
-                      <span className="rounded-md bg-white px-2 py-1 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
-                        planned
-                      </span>
-                    </div>
-                  ))}
-                </div>
-
-                {dashboardSummary ? (
-                  <div className="mt-6 border-t border-slate-100 pt-5">
-                    <div className="mb-3 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold">Ringkasan dashboard</p>
-                        <p className="text-sm text-slate-500">Disesuaikan dengan role {dashboardSummary.role}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => loadDashboard().catch(() => undefined)}
-                        className="h-9 rounded-md border border-slate-200 px-3 text-sm font-medium hover:bg-slate-50"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {user.role === "SALES" ? (
-                        <>
-                          <Metric label="Penjualan saya hari ini" value={formatCurrency(dashboardSummary.mySalesTodayTotal)} />
-                          <Metric label="Transaksi saya" value={`${dashboardSummary.mySalesTodayCount}`} />
-                        </>
-                      ) : (
-                        <>
-                          <Metric label="Penjualan hari ini" value={formatCurrency(dashboardSummary.todaySalesTotal)} />
-                          <Metric label="Penjualan bulan ini" value={formatCurrency(dashboardSummary.monthlySalesTotal)} />
-                          <Metric label="SPP menunggu" value={`${dashboardSummary.waitingPurchaseRequests}`} />
-                          <Metric label="Stok rendah/habis" value={`${dashboardSummary.lowStockCount}/${dashboardSummary.outStockCount}`} />
-                        </>
-                      )}
-                    </div>
-
-                    <div className="mt-4 rounded-md border border-slate-200 p-3">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <p className="text-sm font-semibold">Notifikasi</p>
-                        <button
-                          type="button"
-                          onClick={handleMarkAllNotificationsRead}
-                          className="h-8 rounded-md border border-slate-200 px-3 text-xs font-semibold hover:bg-slate-50"
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
+                <div className="min-w-0 space-y-5">
+                  <Card>
+                    <div className="flex flex-col gap-6 lg:flex-row">
+                      <div className="flex flex-col lg:w-56 lg:shrink-0">
+                        <h3 className="text-[15px] font-semibold tracking-tight text-ink">Penjualan Bulan Ini</h3>
+                        <p
+                          title={formatCurrency(monthlySales)}
+                          className="mt-6 text-[40px] font-semibold leading-none tracking-tight text-ink tabular-nums lg:mt-auto"
                         >
-                          Tandai dibaca
-                        </button>
+                          {formatCompactCurrency(monthlySales)}
+                        </p>
+                        <p className="mt-3 text-sm text-muted">
+                          {monthlySalesCount} transaksi
+                          {monthlySalesCount > 0
+                            ? ` · rata-rata ${formatCompactCurrency(monthlySales / monthlySalesCount)}`
+                            : ""}
+                        </p>
                       </div>
-                      <div className="max-h-48 space-y-2 overflow-auto">
-                        {notifications.length === 0 ? (
-                          <p className="text-sm text-slate-500">Belum ada notifikasi.</p>
+                      <div className="min-w-0 flex-1">
+                        <div className="mb-3 flex items-center justify-end gap-2 text-xs text-muted">
+                          <span className="h-0.5 w-3 rounded-full bg-brand-500" />
+                          {user.role === "SALES" ? "Penjualan saya" : "Penjualan harian"} · 30 hari terakhir
+                        </div>
+                        {hasRecentSales ? (
+                          <SalesTrendChart points={dailySales} />
                         ) : (
-                          notifications.map((notification) => (
-                            <div
-                              key={notification.id}
-                              className={[
-                                "rounded-md px-3 py-2",
-                                notification.readAt ? "bg-slate-50" : "bg-amber-50",
-                              ].join(" ")}
-                            >
-                              <p className="text-sm font-semibold">{notification.title}</p>
-                              <p className="text-xs text-slate-600">{notification.message}</p>
-                              <p className="mt-1 text-xs text-slate-400">{formatDateTime(notification.createdAt)}</p>
-                            </div>
-                          ))
+                          <EmptyState icon={TrendingUp}>Belum ada penjualan dalam 30 hari terakhir.</EmptyState>
                         )}
                       </div>
                     </div>
-                  </div>
-                ) : null}
 
-                <div className="mt-6 border-t border-slate-100 pt-5">
-                  <div className="mb-3 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold">Produk & stok</p>
-                      <p className="text-sm text-slate-500">{products.length} produk aktif</p>
+                    <div className="mt-6 rounded-2xl border border-line p-4">
+                      <div className="mb-4 flex items-center justify-between gap-3">
+                        <h4 className="text-sm font-semibold text-ink">Metode Pembayaran</h4>
+                        <span className="text-xs text-muted">{transactions.length} transaksi terakhir</span>
+                      </div>
+                      <SplitBar segments={paymentSegments} />
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => loadInventory().catch(() => setProductMessage("Gagal memuat ulang stok."))}
-                      className="h-9 rounded-md border border-slate-200 px-3 text-sm font-medium hover:bg-slate-50"
-                    >
-                      Refresh
-                    </button>
-                  </div>
+                  </Card>
 
-                  {productMessage ? <p className="mb-3 text-sm font-medium text-emerald-700">{productMessage}</p> : null}
+                  <Card
+                    title="Produk Terlaris"
+                    action={<span className="text-xs text-muted">Dari {transactions.length} transaksi terakhir</span>}
+                  >
+                    <DataTable
+                      emphasizeFirst={false}
+                      minWidth="min-w-[600px]"
+                      headers={["SKU", "Produk", "Terjual", "Pendapatan", "Stok"]}
+                      rows={topProducts.map((topProduct) => {
+                        const product = products.find((item) => item.id === topProduct.productId);
 
-                  <div className="max-h-72 space-y-2 overflow-auto pr-1">
-                    {products.map((product) => (
-                      <div key={product.id} className="rounded-md border border-slate-200 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold">{product.name}</p>
-                            <p className="text-xs text-slate-500">
-                              {product.sku} · {product.category?.name ?? "Tanpa kategori"}
-                            </p>
-                          </div>
-                          <StockBadge status={product.stockStatus} />
+                        return [
+                          topProduct.sku,
+                          <ProductName key={topProduct.productId} name={topProduct.name} />,
+                          `${topProduct.quantity} ${topProduct.unit}`,
+                          <span key={topProduct.productId} className="inline-flex items-center gap-1.5 font-medium text-green-600">
+                            <Banknote className="size-4" />
+                            {formatCurrency(topProduct.revenue)}
+                          </span>,
+                          product ? <StockBadge key={topProduct.productId} status={product.stockStatus} /> : "-",
+                        ];
+                      })}
+                    />
+                  </Card>
+                </div>
+
+                <div className="grid content-start gap-5 sm:grid-cols-2 xl:grid-cols-1">
+                  <Card title="Hari Paling Ramai" action={<span className="text-xs text-muted">Jumlah transaksi</span>}>
+                    <WeekdayBars data={weekdayActivity} />
+                  </Card>
+
+                  <Card title="Kesehatan Stok" action={<span className="text-xs text-muted">{products.length} produk</span>}>
+                    {products.length > 0 ? (
+                      <div className="relative mx-auto max-w-[260px]">
+                        <RadialGauge
+                          value={stockHealth}
+                          tone={stockHealth >= 80 ? "green" : stockHealth >= 50 ? "orange" : "red"}
+                        />
+                        <div className="absolute inset-x-0 top-[36%] flex flex-col items-center text-center">
+                          <p className="text-[32px] font-semibold leading-none tracking-tight text-ink tabular-nums">
+                            {formatPercent(Math.round(stockHealth))}
+                          </p>
+                          <p className="mt-2 text-xs text-muted">
+                            {lowStockProducts.length > 0
+                              ? `${lowStockProducts.length} produk perlu restock`
+                              : "Semua stok aman"}
+                          </p>
+                          {hasMenu("stock") ? (
+                            <button
+                              type="button"
+                              onClick={() => selectMenu("stock")}
+                              className={cn(buttonStyles.secondary, buttonStyles.small, "mt-3")}
+                            >
+                              Lihat stok
+                            </button>
+                          ) : null}
                         </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-                          <Metric label="Stok" value={`${product.stockQuantity} ${product.unit}`} />
-                          <Metric label="Minimum" value={`${product.minimumStock}`} />
-                          <Metric label="Harga jual" value={formatCurrency(product.sellingPrice)} />
+                      </div>
+                    ) : (
+                      <EmptyState icon={Package}>Belum ada produk.</EmptyState>
+                    )}
+                  </Card>
+
+                <Card title="Alert Prioritas" className="sm:col-span-2 xl:col-span-1">
+                  <div className="divide-y divide-line">
+                    {alerts.map((alert) => (
+                      <div key={alert.area} className="flex gap-3 py-4 first:pt-0 last:pb-0">
+                        <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl", alertTones[alert.tone])}>
+                          <alert.icon className="size-[18px]" />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-muted">{alert.area}</p>
+                          <p className="truncate text-sm font-semibold text-ink">{alert.title}</p>
+                          <span className="mt-2 inline-block rounded-md border border-line bg-canvas px-1.5 py-0.5 text-[11px] font-medium text-muted">
+                            #{alert.impact}
+                          </span>
                         </div>
-                        {canManageStock ? (
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustStock(product)}
-                            className="mt-3 h-9 w-full rounded-md border border-slate-200 text-sm font-medium hover:bg-slate-50"
-                          >
-                            Sesuaikan stok
-                          </button>
-                        ) : null}
                       </div>
                     ))}
                   </div>
+                </Card>
+                </div>
+              </div>
 
-                  {canManageStock ? (
-                    <div className="mt-5 grid gap-4 border-t border-slate-100 pt-5">
-                      <form onSubmit={handleCreateCategory} className="grid gap-2">
-                        <p className="text-sm font-semibold">Tambah kategori</p>
-                        <div className="flex gap-2">
-                          <input
-                            value={categoryName}
-                            onChange={(event) => setCategoryName(event.target.value)}
-                            placeholder="Nama kategori"
-                            className="h-10 flex-1 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                          <button className="h-10 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white">
-                            Simpan
-                          </button>
-                        </div>
-                      </form>
+              <div className="grid gap-5 xl:grid-cols-2">
+                <Card title={user.role === "OWNER" ? "SPP Menunggu Approval" : "Aktivitas Terbaru"}>
+                  <DataTable
+                    headers={user.role === "OWNER" ? ["SPP", "Supplier", "Estimasi", "Status"] : ["No", "Sales", "Total", "Waktu"]}
+                    rows={(user.role === "OWNER" ? waitingRequests.slice(0, 4) : latestTransactions).map((item) =>
+                      user.role === "OWNER"
+                        ? [
+                            (item as PurchaseRequest).requestNo,
+                            (item as PurchaseRequest).supplier ?? "Tanpa supplier",
+                            formatCurrency((item as PurchaseRequest).items.reduce((sum, row) => sum + Number(row.estimatedPrice), 0)),
+                            <PurchaseStatusBadge key={(item as PurchaseRequest).id} status={(item as PurchaseRequest).status} />,
+                          ]
+                        : [
+                            (item as SalesTransaction).transactionNo,
+                            (item as SalesTransaction).sales.name,
+                            formatCurrency((item as SalesTransaction).total),
+                            formatDateTime((item as SalesTransaction).transactionAt),
+                          ],
+                    )}
+                  />
+                </Card>
 
-                      <form onSubmit={handleCreateProduct} className="grid gap-2">
-                        <p className="text-sm font-semibold">Tambah produk</p>
+                <Card title={user.role === "SALES" ? "Produk Tersedia" : "Ringkasan Keuangan"}>
+                  {user.role === "SALES" ? (
+                    <DataTable
+                      headers={["Produk", "SKU", "Stok", "Status"]}
+                      rows={products.slice(0, 5).map((product) => [
+                        product.name,
+                        product.sku,
+                        `${product.stockQuantity} ${product.unit}`,
+                        <StockBadge key={product.id} status={product.stockStatus} />,
+                      ])}
+                    />
+                  ) : (
+                    <DataTable
+                      headers={["Kategori", "Masuk", "Keluar", "Laba"]}
+                      rows={[
+                        ["Hari ini", formatCurrency(salesTotal), formatCurrency(financeSummary?.totalExpense ?? 0), formatCurrency(Math.max(salesTotal - (financeSummary?.totalExpense ?? 0), 0))],
+                        ["Bulan ini", formatCurrency(monthlySales), formatCurrency(financeSummary?.totalExpense ?? 0), formatCurrency(grossProfit)],
+                        ["Deposit", formatCurrency(financeSummary?.depositTotal ?? 0), "-", formatCurrency(cashBalance)],
+                      ]}
+                    />
+                  )}
+                </Card>
+              </div>
+            </>
+          ) : null}
+
+          {currentMenu === "approval" ? (
+            <>
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)]">
+                <Card title="Daftar Approval" action={<span className="text-xs text-muted">{purchaseRequests.length} pengajuan</span>}>
+                  {purchaseMessage ? (
+                    <div className="mb-4">
+                      <Notice>{purchaseMessage}</Notice>
+                    </div>
+                  ) : null}
+                  <DataTable
+                    headers={["SPP", "Supplier", "Estimasi", "Status"]}
+                    rows={purchaseRequests.map((request) => [
+                      request.requestNo,
+                      request.supplier ?? "Tanpa supplier",
+                      formatCurrency(request.items.reduce((sum, item) => sum + Number(item.estimatedPrice), 0)),
+                      <PurchaseStatusBadge key={request.id} status={request.status} />,
+                    ])}
+                  />
+                </Card>
+
+                <Card title={waitingRequests[0] ? `${waitingRequests[0].requestNo} · ${waitingRequests[0].supplier ?? "Pengajuan stok"}` : "Detail SPP"}>
+                  {waitingRequests[0] ? (
+                    <div>
+                      <p className="-mt-2 mb-5 text-sm text-muted">Diajukan {formatDateTime(waitingRequests[0].createdAt)}</p>
+                      <div className="space-y-2">
+                        {waitingRequests[0].items.map((item) => (
+                          <div
+                            key={item.id}
+                            className="grid grid-cols-[1fr_auto_auto] items-center gap-4 rounded-xl border border-line bg-canvas/60 px-4 py-3 text-sm"
+                          >
+                            <span className="font-medium text-ink">{item.product.name}</span>
+                            <span className="text-muted">
+                              {item.quantity} {item.product.unit}
+                            </span>
+                            <span className="font-semibold text-brand-600 tabular-nums">{formatCurrency(item.estimatedPrice)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-8 flex flex-wrap gap-3">
+                        <button type="button" onClick={() => handleOwnerDecision(waitingRequests[0], "reject")} className={buttonStyles.danger}>
+                          Tolak
+                        </button>
+                        <button type="button" onClick={() => handleOwnerDecision(waitingRequests[0], "approve")} className={buttonStyles.primary}>
+                          <Check />
+                          Setujui
+                        </button>
+                        <button type="button" onClick={() => handleOwnerDecision(waitingRequests[0], "request-revision")} className={buttonStyles.secondary}>
+                          Revisi
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <EmptyState icon={ClipboardCheck}>Tidak ada SPP yang menunggu approval.</EmptyState>
+                  )}
+                </Card>
+              </div>
+
+              <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard
+                  label="Pemasukan"
+                  value={formatCompactCurrency(financeSummary?.salesTotal ?? monthlySales)}
+                  title={formatCurrency(financeSummary?.salesTotal ?? monthlySales)}
+                  icon={TrendingUp}
+                  caption="Penjualan bulan ini"
+                />
+                <StatCard
+                  label="Pengeluaran"
+                  value={formatCompactCurrency(financeSummary?.totalExpense ?? 0)}
+                  title={formatCurrency(financeSummary?.totalExpense ?? 0)}
+                  icon={Receipt}
+                  caption="Stok + operasional"
+                />
+                <StatCard
+                  label="Laba Kotor"
+                  value={formatCompactCurrency(grossProfit)}
+                  title={formatCurrency(grossProfit)}
+                  icon={PiggyBank}
+                  caption="Margin berjalan"
+                />
+                <StatCard
+                  label="Saldo Kas"
+                  value={formatCompactCurrency(cashBalance)}
+                  title={formatCurrency(cashBalance)}
+                  icon={Wallet}
+                  caption="Kas terkini"
+                />
+              </div>
+            </>
+          ) : null}
+
+          {currentMenu === "users" ? (
+            <>
+              <div className="flex flex-wrap gap-3">
+                <button className={buttonStyles.primary}>
+                  <UserPlus />
+                  Tambah Pengguna
+                </button>
+                <button className={buttonStyles.secondary}>
+                  <KeyRound />
+                  Role & Akses
+                </button>
+              </div>
+              <Card title="Daftar Pengguna" action={<span className="text-xs text-muted">{userRows.length} pengguna</span>}>
+                <DataTable
+                  emphasizeFirst={false}
+                  minWidth="min-w-[640px]"
+                  headers={["Nama", "Email", "Role", "Status", "Login terakhir"]}
+                  rows={userRows.map((row) => [
+                    <span key={row.email} className="flex items-center gap-3">
+                      <Avatar initials={getInitials(row.name)} />
+                      <span className="font-medium text-ink">{row.name}</span>
+                    </span>,
+                    row.email,
+                    row.role,
+                    <Pill key={row.email} tone={row.status === "Aktif" ? "green" : "gray"}>
+                      {row.status}
+                    </Pill>,
+                    row.lastLogin,
+                  ])}
+                />
+              </Card>
+              <Card title="Ringkasan Akses per Role">
+                <div className="divide-y divide-line">
+                  <RoleAccessBadge label="Pemilik" tone="violet" text="Semua fitur, approval SPP, laporan lengkap, manajemen pengguna" />
+                  <RoleAccessBadge label="Supervisor" tone="blue" text="Monitor penjualan, stok, SPP, deposit, laporan dasar" />
+                  <RoleAccessBadge label="Sales" tone="green" text="Input penjualan, lihat stok, target, riwayat sendiri" />
+                </div>
+              </Card>
+            </>
+          ) : null}
+
+          {currentMenu === "finance" || currentMenu === "deposit" ? (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <Card title={currentMenu === "deposit" ? "Catat Deposit" : "Input Keuangan"}>
+                {financeMessage ? (
+                  <div className="mb-4">
+                    <Notice>{financeMessage}</Notice>
+                  </div>
+                ) : null}
+                <div className="grid gap-6">
+                  <form onSubmit={handleCreateDeposit} className="grid gap-4">
+                    <Field label="Jumlah deposit">
+                      <input value={depositForm.amount} onChange={(event) => setDepositForm((current) => ({ ...current, amount: event.target.value }))} placeholder="Contoh: 500000" type="number" className={inputClass} />
+                    </Field>
+                    <Field label="Tujuan kas">
+                      <input value={depositForm.destination} onChange={(event) => setDepositForm((current) => ({ ...current, destination: event.target.value }))} placeholder="Kas toko / bank tujuan" className={inputClass} />
+                    </Field>
+                    <Field label="Catatan deposit">
+                      <input value={depositForm.note} onChange={(event) => setDepositForm((current) => ({ ...current, note: event.target.value }))} placeholder="Opsional" className={inputClass} />
+                    </Field>
+                    <button className={buttonStyles.primary}>Simpan deposit</button>
+                  </form>
+                  {currentMenu === "finance" ? (
+                    <form onSubmit={handleCreateExpense} className="grid gap-4 border-t border-line pt-6">
+                      <Field label="Nama biaya">
+                        <input value={expenseForm.title} onChange={(event) => setExpenseForm((current) => ({ ...current, title: event.target.value }))} placeholder="Contoh: listrik toko" className={inputClass} />
+                      </Field>
+                      <Field label="Jumlah biaya">
+                        <input value={expenseForm.amount} onChange={(event) => setExpenseForm((current) => ({ ...current, amount: event.target.value }))} placeholder="Contoh: 250000" type="number" className={inputClass} />
+                      </Field>
+                      <button className={buttonStyles.secondary}>Simpan biaya</button>
+                    </form>
+                  ) : null}
+                </div>
+              </Card>
+              <Card title="Breakdown Laporan">
+                <DataTable
+                  headers={["Kategori", "Pemasukan", "Pengeluaran", "Laba"]}
+                  rows={[
+                    ["Penjualan", formatCurrency(financeSummary?.salesTotal ?? 0), "-", formatCurrency(financeSummary?.grossProfit ?? 0)],
+                    ["Pembelian stok", "-", formatCurrency(financeSummary?.purchaseExpenseTotal ?? 0), "-"],
+                    ["Operasional", "-", formatCurrency(financeSummary?.operationalExpenseTotal ?? 0), "-"],
+                    ["Deposit", formatCurrency(financeSummary?.depositTotal ?? 0), "-", formatCurrency(cashBalance)],
+                  ]}
+                />
+                <div className="mt-6 border-t border-line pt-5">
+                  <p className="mb-3 text-sm font-semibold text-ink">Biaya terbaru</p>
+                  <div className="space-y-2">
+                    {expenses.length === 0 ? <p className="text-sm text-muted">Belum ada biaya tercatat.</p> : null}
+                    {expenses.slice(0, 4).map((expense) => (
+                      <div key={expense.id} className="flex items-center justify-between gap-3 rounded-xl border border-line px-3.5 py-2.5 text-sm">
+                        <span className="flex min-w-0 items-center gap-3 font-medium text-ink">
+                          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-orange-50 text-orange-600">
+                            <Receipt className="size-4" />
+                          </span>
+                          <span className="truncate">{expense.title}</span>
+                        </span>
+                        <span className="shrink-0 font-medium text-muted tabular-nums">{formatCurrency(expense.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            </div>
+          ) : null}
+
+          {currentMenu === "sales" ? (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+              <Card title="Catat Transaksi">
+                {salesMessage ? (
+                  <div className="mb-4">
+                    <Notice>{salesMessage}</Notice>
+                  </div>
+                ) : null}
+                <form onSubmit={handleCreateSale} className="grid gap-4">
+                  <Field label="Produk yang dijual">
+                    <select value={salesForm.productId} onChange={(event) => setSalesForm((current) => ({ ...current, productId: event.target.value }))} className={inputClass}>
+                      <option value="">Pilih produk</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id} disabled={product.stockQuantity <= 0}>{product.name} · stok {product.stockQuantity}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Jumlah terjual">
+                      <input value={salesForm.quantity} onChange={(event) => setSalesForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Masukkan jumlah item" type="number" min={1} className={inputClass} />
+                    </Field>
+                    <Field label="Metode pembayaran">
+                      <select value={salesForm.paymentMethod} onChange={(event) => setSalesForm((current) => ({ ...current, paymentMethod: event.target.value as PaymentMethod }))} className={inputClass}>
+                        {(Object.keys(paymentMeta) as PaymentMethod[]).map((method) => (
+                          <option key={method} value={method}>{paymentMeta[method].label}</option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                  <Field label="Nama pelanggan">
+                    <input value={salesForm.customerName} onChange={(event) => setSalesForm((current) => ({ ...current, customerName: event.target.value }))} placeholder="Opsional" className={inputClass} />
+                  </Field>
+                  <button className={buttonStyles.primary}>Simpan transaksi</button>
+                </form>
+              </Card>
+              <Card title="Transaksi Terbaru">
+                <DataTable headers={["No", "Sales", "Total", "Waktu"]} rows={latestTransactions.map((transaction) => [transaction.transactionNo, transaction.sales.name, formatCurrency(transaction.total), formatDateTime(transaction.transactionAt)])} />
+              </Card>
+            </div>
+          ) : null}
+
+          {currentMenu === "stock" ? (
+            <div className={cn("grid gap-5", canManageStock && "xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)]")}>
+              <Card title="Daftar Stok Produk" action={<span className="text-xs text-muted">{products.length} produk</span>}>
+                {productMessage ? (
+                  <div className="mb-4">
+                    <Notice>{productMessage}</Notice>
+                  </div>
+                ) : null}
+                <DataTable
+                  emphasizeFirst={false}
+                  minWidth="min-w-[640px]"
+                  headers={["Produk", "Kategori", "Stok", "Minimum", "Status"]}
+                  rows={products.map((product) => [
+                    <ProductName key={product.id} name={product.name} sku={product.sku} />,
+                    product.category?.name ?? "Tanpa kategori",
+                    `${product.stockQuantity} ${product.unit}`,
+                    `${product.minimumStock}`,
+                    <span key={product.id} className="inline-flex items-center gap-2">
+                      <StockBadge status={product.stockStatus} />
+                      {canManageStock ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAdjustStock(product)}
+                          className={cn(buttonStyles.secondary, buttonStyles.small)}
+                        >
+                          Adjust
+                        </button>
+                      ) : null}
+                    </span>,
+                  ])}
+                />
+              </Card>
+
+              {canManageStock ? (
+                <Card title="Kelola Produk">
+                  <div className="grid gap-6">
+                    <form onSubmit={handleCreateCategory} className="grid gap-4">
+                      <Field label="Nama kategori produk">
+                        <input
+                          value={categoryName}
+                          onChange={(event) => setCategoryName(event.target.value)}
+                          placeholder="Contoh: Minuman"
+                          className={inputClass}
+                        />
+                      </Field>
+                      <button className={buttonStyles.secondary}>Simpan kategori</button>
+                    </form>
+
+                    <form onSubmit={handleCreateProduct} className="grid gap-4 border-t border-line pt-6">
+                      <Field label="Nama produk">
                         <input
                           value={productForm.name}
                           onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))}
-                          placeholder="Nama produk"
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
+                          placeholder="Contoh: Cup 16oz"
+                          className={inputClass}
                         />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={productForm.sku}
-                            onChange={(event) => setProductForm((current) => ({ ...current, sku: event.target.value }))}
-                            placeholder="SKU"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                          <input
-                            value={productForm.unit}
-                            onChange={(event) => setProductForm((current) => ({ ...current, unit: event.target.value }))}
-                            placeholder="Satuan"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={productForm.purchasePrice}
-                            onChange={(event) =>
-                              setProductForm((current) => ({ ...current, purchasePrice: event.target.value }))
-                            }
-                            placeholder="Harga beli"
-                            type="number"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                          <input
-                            value={productForm.sellingPrice}
-                            onChange={(event) =>
-                              setProductForm((current) => ({ ...current, sellingPrice: event.target.value }))
-                            }
-                            placeholder="Harga jual"
-                            type="number"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={productForm.stockQuantity}
-                            onChange={(event) =>
-                              setProductForm((current) => ({ ...current, stockQuantity: event.target.value }))
-                            }
-                            placeholder="Stok awal"
-                            type="number"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                          <input
-                            value={productForm.minimumStock}
-                            onChange={(event) =>
-                              setProductForm((current) => ({ ...current, minimumStock: event.target.value }))
-                            }
-                            placeholder="Stok minimum"
-                            type="number"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                        </div>
+                      </Field>
+                      <Field label="SKU produk">
+                        <input
+                          value={productForm.sku}
+                          onChange={(event) => setProductForm((current) => ({ ...current, sku: event.target.value }))}
+                          placeholder="Kode unik produk"
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field label="Kategori produk">
                         <select
                           value={productForm.categoryId}
-                          onChange={(event) =>
-                            setProductForm((current) => ({ ...current, categoryId: event.target.value }))
-                          }
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
+                          onChange={(event) => setProductForm((current) => ({ ...current, categoryId: event.target.value }))}
+                          className={inputClass}
                         >
                           <option value="">Tanpa kategori</option>
                           {categories.map((category) => (
@@ -1442,592 +1463,122 @@ function App() {
                             </option>
                           ))}
                         </select>
-                        <button className="h-10 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800">
-                          Tambah produk
-                        </button>
-                      </form>
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="mt-6 border-t border-slate-100 pt-5">
-                  <div className="mb-3 flex items-center justify-between gap-4">
-                    <div>
-                      <p className="text-sm font-semibold">Penjualan</p>
-                      <p className="text-sm text-slate-500">{transactions.length} transaksi terbaru</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => loadSales().catch(() => setSalesMessage("Gagal memuat transaksi."))}
-                      className="h-9 rounded-md border border-slate-200 px-3 text-sm font-medium hover:bg-slate-50"
-                    >
-                      Refresh
-                    </button>
-                  </div>
-
-                  {salesMessage ? <p className="mb-3 text-sm font-medium text-emerald-700">{salesMessage}</p> : null}
-
-                  <form onSubmit={handleCreateSale} className="grid gap-2 rounded-md border border-slate-200 p-3">
-                    <p className="text-sm font-semibold">Catat transaksi</p>
-                    <select
-                      value={salesForm.productId}
-                      onChange={(event) => setSalesForm((current) => ({ ...current, productId: event.target.value }))}
-                      className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                    >
-                      <option value="">Pilih produk</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id} disabled={product.stockQuantity <= 0}>
-                          {product.name} · stok {product.stockQuantity}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        value={salesForm.quantity}
-                        onChange={(event) => setSalesForm((current) => ({ ...current, quantity: event.target.value }))}
-                        placeholder="Jumlah"
-                        type="number"
-                        min={1}
-                        className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                      />
-                      <select
-                        value={salesForm.paymentMethod}
-                        onChange={(event) =>
-                          setSalesForm((current) => ({
-                            ...current,
-                            paymentMethod: event.target.value as PaymentMethod,
-                          }))
-                        }
-                        className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                      >
-                        <option value="CASH">Tunai</option>
-                        <option value="TRANSFER">Transfer</option>
-                        <option value="QRIS">QRIS</option>
-                        <option value="OTHER">Lainnya</option>
-                      </select>
-                    </div>
-                    <input
-                      value={salesForm.customerName}
-                      onChange={(event) => setSalesForm((current) => ({ ...current, customerName: event.target.value }))}
-                      placeholder="Nama pelanggan (opsional)"
-                      className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                    />
-                    <button className="h-10 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800">
-                      Simpan transaksi
-                    </button>
-                  </form>
-
-                  <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
-                    {transactions.map((transaction) => (
-                      <div key={transaction.id} className="rounded-md border border-slate-200 p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold">{transaction.transactionNo}</p>
-                            <p className="text-xs text-slate-500">
-                              {transaction.sales.name} · {formatDateTime(transaction.transactionAt)}
-                            </p>
-                          </div>
-                          <span className="rounded-md bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
-                            {formatCurrency(transaction.total)}
-                          </span>
-                        </div>
-                        <div className="mt-2 space-y-1">
-                          {transaction.items.map((item) => (
-                            <p key={item.id} className="text-xs text-slate-600">
-                              {item.product.name} · {item.quantity} {item.product.unit} · {formatCurrency(item.total)}
-                            </p>
-                          ))}
-                        </div>
+                      </Field>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Harga jual">
+                          <input
+                            value={productForm.sellingPrice}
+                            onChange={(event) => setProductForm((current) => ({ ...current, sellingPrice: event.target.value }))}
+                            placeholder="Rp"
+                            type="number"
+                            className={inputClass}
+                          />
+                        </Field>
+                        <Field label="Stok awal">
+                          <input
+                            value={productForm.stockQuantity}
+                            onChange={(event) => setProductForm((current) => ({ ...current, stockQuantity: event.target.value }))}
+                            placeholder="Jumlah stok"
+                            type="number"
+                            className={inputClass}
+                          />
+                        </Field>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {canUsePurchaseRequests ? (
-                  <div className="mt-6 border-t border-slate-100 pt-5">
-                    <div className="mb-3 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold">SPP pembelian stok</p>
-                        <p className="text-sm text-slate-500">{purchaseRequests.length} pengajuan terbaru</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          loadPurchaseRequests().catch(() => setPurchaseMessage("Gagal memuat data SPP."))
-                        }
-                        className="h-9 rounded-md border border-slate-200 px-3 text-sm font-medium hover:bg-slate-50"
-                      >
-                        Refresh
-                      </button>
-                    </div>
-
-                    {purchaseMessage ? (
-                      <p className="mb-3 text-sm font-medium text-emerald-700">{purchaseMessage}</p>
-                    ) : null}
-
-                    <form onSubmit={handleCreatePurchaseRequest} className="grid gap-2 rounded-md border border-slate-200 p-3">
-                      <p className="text-sm font-semibold">Buat SPP</p>
-                      <select
-                        value={purchaseForm.productId}
-                        onChange={(event) =>
-                          setPurchaseForm((current) => ({ ...current, productId: event.target.value }))
-                        }
-                        className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                      >
-                        <option value="">Pilih produk</option>
-                        {products.map((product) => (
-                          <option key={product.id} value={product.id}>
-                            {product.name} · stok {product.stockQuantity}
-                          </option>
-                        ))}
-                      </select>
-                      <div className="grid grid-cols-2 gap-2">
-                        <input
-                          value={purchaseForm.quantity}
-                          onChange={(event) =>
-                            setPurchaseForm((current) => ({ ...current, quantity: event.target.value }))
-                          }
-                          placeholder="Jumlah"
-                          type="number"
-                          min={1}
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                        />
-                        <input
-                          value={purchaseForm.estimatedPrice}
-                          onChange={(event) =>
-                            setPurchaseForm((current) => ({ ...current, estimatedPrice: event.target.value }))
-                          }
-                          placeholder="Estimasi harga"
-                          type="number"
-                          min={0}
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                        />
-                      </div>
-                      <input
-                        value={purchaseForm.supplier}
-                        onChange={(event) =>
-                          setPurchaseForm((current) => ({ ...current, supplier: event.target.value }))
-                        }
-                        placeholder="Supplier (opsional)"
-                        className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                      />
-                      <input
-                        value={purchaseForm.note}
-                        onChange={(event) => setPurchaseForm((current) => ({ ...current, note: event.target.value }))}
-                        placeholder="Catatan SPP (opsional)"
-                        className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                      />
-                      <button className="h-10 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800">
-                        Kirim SPP
+                      <button className={buttonStyles.primary}>
+                        <Plus />
+                        Tambah produk
                       </button>
                     </form>
+                  </div>
+                </Card>
+              ) : null}
+            </div>
+          ) : null}
 
-                    <div className="mt-4 max-h-72 space-y-2 overflow-auto pr-1">
-                      {purchaseRequests.map((purchaseRequest) => (
-                        <div key={purchaseRequest.id} className="rounded-md border border-slate-200 p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold">{purchaseRequest.requestNo}</p>
-                              <p className="text-xs text-slate-500">
-                                {purchaseRequest.supplier ?? "Tanpa supplier"} ·{" "}
-                                {formatDateTime(purchaseRequest.createdAt)}
-                              </p>
-                            </div>
-                            <PurchaseStatusBadge status={purchaseRequest.status} />
-                          </div>
-                          <div className="mt-2 space-y-1">
-                            {purchaseRequest.items.map((item) => (
-                              <p key={item.id} className="text-xs text-slate-600">
-                                {item.product.name} · {item.quantity} {item.product.unit} · estimasi{" "}
-                                {formatCurrency(item.estimatedPrice)}
-                              </p>
-                            ))}
-                          </div>
-                          {purchaseRequest.ownerNote ? (
-                            <p className="mt-2 text-xs font-medium text-slate-600">Catatan: {purchaseRequest.ownerNote}</p>
-                          ) : null}
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {user?.role === "OWNER" && purchaseRequest.status === "WAITING_APPROVAL" ? (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOwnerDecision(purchaseRequest, "approve")}
-                                  className="h-8 rounded-md bg-emerald-700 px-3 text-xs font-semibold text-white"
-                                >
-                                  Approve
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOwnerDecision(purchaseRequest, "reject")}
-                                  className="h-8 rounded-md bg-rose-700 px-3 text-xs font-semibold text-white"
-                                >
-                                  Reject
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOwnerDecision(purchaseRequest, "request-revision")}
-                                  className="h-8 rounded-md border border-slate-200 px-3 text-xs font-semibold"
-                                >
-                                  Revisi
-                                </button>
-                              </>
-                            ) : null}
-                            {purchaseRequest.status === "APPROVED" ? (
-                              <button
-                                type="button"
-                                onClick={() => handleRealizePurchaseRequest(purchaseRequest)}
-                                className="h-8 rounded-md bg-slate-900 px-3 text-xs font-semibold text-white"
-                              >
-                                Realisasi
-                              </button>
-                            ) : null}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+          {currentMenu === "purchase" ? (
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)]">
+              <Card title="Buat SPP">
+                {purchaseMessage ? (
+                  <div className="mb-4">
+                    <Notice>{purchaseMessage}</Notice>
                   </div>
                 ) : null}
-
-                {canUseFinance ? (
-                  <div className="mt-6 border-t border-slate-100 pt-5">
-                    <div className="mb-3 flex items-center justify-between gap-4">
-                      <div>
-                        <p className="text-sm font-semibold">Keuangan & deposit</p>
-                        <p className="text-sm text-slate-500">Ringkasan pemasukan, pengeluaran, dan kas</p>
-                      </div>
+                <form onSubmit={handleCreatePurchaseRequest} className="grid gap-4">
+                  <Field label="Produk yang diminta">
+                    <select value={purchaseForm.productId} onChange={(event) => setPurchaseForm((current) => ({ ...current, productId: event.target.value }))} className={inputClass}>
+                      <option value="">Pilih produk</option>
+                      {products.map((product) => <option key={product.id} value={product.id}>{product.name} · stok {product.stockQuantity}</option>)}
+                    </select>
+                  </Field>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Jumlah pembelian">
+                      <input value={purchaseForm.quantity} onChange={(event) => setPurchaseForm((current) => ({ ...current, quantity: event.target.value }))} placeholder="Masukkan jumlah item" type="number" min={1} className={inputClass} />
+                    </Field>
+                    <Field label="Estimasi harga">
+                      <input value={purchaseForm.estimatedPrice} onChange={(event) => setPurchaseForm((current) => ({ ...current, estimatedPrice: event.target.value }))} placeholder="Total estimasi biaya" type="number" className={inputClass} />
+                    </Field>
+                  </div>
+                  <Field label="Supplier">
+                    <input value={purchaseForm.supplier} onChange={(event) => setPurchaseForm((current) => ({ ...current, supplier: event.target.value }))} placeholder="Nama supplier" className={inputClass} />
+                  </Field>
+                  <button className={buttonStyles.primary}>Kirim SPP</button>
+                </form>
+              </Card>
+              <Card title="Daftar SPP" action={<span className="text-xs text-muted">{purchaseRequests.length} pengajuan</span>}>
+                <DataTable headers={["SPP", "Supplier", "Estimasi", "Status"]} rows={purchaseRequests.map((request) => [request.requestNo, request.supplier ?? "Tanpa supplier", formatCurrency(request.items.reduce((sum, item) => sum + Number(item.estimatedPrice), 0)), <PurchaseStatusBadge key={request.id} status={request.status} />])} />
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {purchaseRequests
+                    .filter((request) => request.status === "APPROVED")
+                    .map((request) => (
                       <button
+                        key={request.id}
                         type="button"
-                        onClick={() => loadFinance().catch(() => setFinanceMessage("Gagal memuat data keuangan."))}
-                        className="h-9 rounded-md border border-slate-200 px-3 text-sm font-medium hover:bg-slate-50"
+                        onClick={() => handleRealizePurchaseRequest(request)}
+                        className={cn(buttonStyles.secondary, buttonStyles.small)}
                       >
-                        Refresh
+                        <PackageCheck />
+                        Realisasi {request.requestNo}
                       </button>
-                    </div>
-
-                    {financeMessage ? <p className="mb-3 text-sm font-medium text-emerald-700">{financeMessage}</p> : null}
-
-                    {financeSummary ? (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Metric label="Penjualan" value={formatCurrency(financeSummary.salesTotal)} />
-                        <Metric label="Laba kotor" value={formatCurrency(financeSummary.grossProfit)} />
-                        <Metric label="Pengeluaran" value={formatCurrency(financeSummary.totalExpense)} />
-                        <Metric label="Saldo kas" value={formatCurrency(financeSummary.cashBalance)} />
-                      </div>
-                    ) : null}
-
-                    <div className="mt-5 grid gap-4">
-                      <form onSubmit={handleCreateDeposit} className="grid gap-2 rounded-md border border-slate-200 p-3">
-                        <p className="text-sm font-semibold">Catat deposit</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={depositForm.amount}
-                            onChange={(event) =>
-                              setDepositForm((current) => ({ ...current, amount: event.target.value }))
-                            }
-                            placeholder="Jumlah"
-                            type="number"
-                            min={0}
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                          <input
-                            value={depositForm.destination}
-                            onChange={(event) =>
-                              setDepositForm((current) => ({ ...current, destination: event.target.value }))
-                            }
-                            placeholder="Tujuan"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <input
-                          value={depositForm.note}
-                          onChange={(event) => setDepositForm((current) => ({ ...current, note: event.target.value }))}
-                          placeholder="Catatan deposit (opsional)"
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                        />
-                        <button className="h-10 rounded-md bg-emerald-700 px-3 text-sm font-semibold text-white hover:bg-emerald-800">
-                          Simpan deposit
-                        </button>
-                      </form>
-
-                      <form onSubmit={handleCreateExpense} className="grid gap-2 rounded-md border border-slate-200 p-3">
-                        <p className="text-sm font-semibold">Catat biaya operasional</p>
-                        <input
-                          value={expenseForm.title}
-                          onChange={(event) => setExpenseForm((current) => ({ ...current, title: event.target.value }))}
-                          placeholder="Nama biaya"
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                        />
-                        <div className="grid grid-cols-2 gap-2">
-                          <input
-                            value={expenseForm.amount}
-                            onChange={(event) =>
-                              setExpenseForm((current) => ({ ...current, amount: event.target.value }))
-                            }
-                            placeholder="Jumlah"
-                            type="number"
-                            min={0}
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                          <input
-                            value={expenseForm.category}
-                            onChange={(event) =>
-                              setExpenseForm((current) => ({ ...current, category: event.target.value }))
-                            }
-                            placeholder="Kategori"
-                            className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                          />
-                        </div>
-                        <input
-                          value={expenseForm.note}
-                          onChange={(event) => setExpenseForm((current) => ({ ...current, note: event.target.value }))}
-                          placeholder="Catatan biaya (opsional)"
-                          className="h-10 rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500"
-                        />
-                        <button className="h-10 rounded-md bg-slate-900 px-3 text-sm font-semibold text-white">
-                          Simpan biaya
-                        </button>
-                      </form>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <div className="rounded-md border border-slate-200 p-3">
-                        <p className="mb-2 text-sm font-semibold">Deposit terbaru</p>
-                        <div className="max-h-48 space-y-2 overflow-auto">
-                          {deposits.map((deposit) => (
-                            <div key={deposit.id} className="rounded-md bg-slate-50 px-3 py-2">
-                              <p className="text-sm font-medium">{formatCurrency(deposit.amount)}</p>
-                              <p className="text-xs text-slate-500">
-                                {deposit.destination} · {formatDateTime(deposit.depositedAt)}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="rounded-md border border-slate-200 p-3">
-                        <p className="mb-2 text-sm font-semibold">Biaya terbaru</p>
-                        <div className="max-h-48 space-y-2 overflow-auto">
-                          {expenses.map((expense) => (
-                            <div key={expense.id} className="rounded-md bg-slate-50 px-3 py-2">
-                              <p className="text-sm font-medium">{expense.title}</p>
-                              <p className="text-xs text-slate-500">
-                                {formatCurrency(expense.amount)} · {expense.category ?? "Tanpa kategori"}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <form onSubmit={handleLogin}>
-                <div className="flex items-center gap-3 border-b border-slate-100 pb-4">
-                  <div className="rounded-md bg-slate-900 p-2 text-white">
-                    <Activity className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold">Login development</p>
-                    <p className="text-sm text-slate-500">{serviceName}</p>
-                  </div>
+                    ))}
                 </div>
+              </Card>
+            </div>
+          ) : null}
 
-                <div className="mt-5 space-y-4">
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Email</span>
-                    <input
-                      value={email}
-                      onChange={(event) => setEmail(event.target.value)}
-                      className="mt-1 h-11 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                      type="email"
-                    />
-                  </label>
-                  <label className="block">
-                    <span className="text-sm font-medium text-slate-700">Password</span>
-                    <input
-                      value={password}
-                      onChange={(event) => setPassword(event.target.value)}
-                      className="mt-1 h-11 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
-                      type="password"
-                    />
-                  </label>
-
-                  {authMessage ? <p className="text-sm font-medium text-rose-600">{authMessage}</p> : null}
-
-                  <button
-                    type="submit"
-                    disabled={isLoading || apiState === "offline"}
-                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-md bg-emerald-700 px-4 text-sm font-semibold text-white shadow-sm hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-                  >
-                    <WalletCards className="h-4 w-4" />
-                    {isLoading ? "Signing in..." : "Sign in"}
-                  </button>
-                </div>
-
-                <div className="mt-5 grid gap-2">
-                  {demoAccounts.map((account) => (
-                    <button
-                      key={account.email}
-                      type="button"
-                      onClick={() => {
-                        setEmail(account.email);
-                        setPassword("Password123!");
-                      }}
-                      className="flex items-center justify-between rounded-md bg-slate-50 px-3 py-2 text-left text-sm hover:bg-slate-100"
-                    >
-                      <span className="font-medium">{account.label}</span>
-                      <span className="text-xs text-slate-500">{account.role}</span>
-                    </button>
-                  ))}
-                </div>
-              </form>
-            )}
-          </aside>
-        </section>
+          {currentMenu === "history" ? (
+            <Card title="Riwayat Penjualan Saya" action={<span className="text-xs text-muted">{transactions.length} transaksi</span>}>
+              <DataTable headers={["No", "Produk", "Total", "Waktu"]} rows={transactions.map((transaction) => [transaction.transactionNo, transaction.items.map((item) => item.product.name).join(", "), formatCurrency(transaction.total), formatDateTime(transaction.transactionAt)])} />
+            </Card>
+          ) : null}
+        </main>
       </div>
-    </main>
-  ); */
+    </div>
+  );
 }
 
 export default App;
 
-function DashboardCard({
-  dot,
-  label,
-  value,
-  helper,
-  helperTone,
-}: {
-  dot: string;
-  label: string;
-  value: string;
-  helper: string;
-  helperTone: string;
-}) {
+function ProductName({ name, sku }: { name: string; sku?: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center gap-2">
-        <span className={["h-2.5 w-2.5 rounded-full", dot].join(" ")} />
-        <p className="text-sm font-medium text-slate-500">{label}</p>
-      </div>
-      <p className="mt-5 text-3xl font-bold tracking-normal text-[#121a2d]">{value}</p>
-      <p className={["mt-2 text-sm font-medium", helperTone].join(" ")}>{helper}</p>
-    </div>
-  );
-}
-
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-slate-200 px-5 py-5">
-        <h3 className="text-lg font-bold tracking-normal text-[#121a2d]">{title}</h3>
-      </div>
-      <div className="p-5">{children}</div>
-    </section>
-  );
-}
-
-function DataTable({ headers, rows }: { headers: string[]; rows: ReactNode[][] }) {
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[560px] border-collapse text-left text-sm">
-        <thead>
-          <tr>
-            {headers.map((header) => (
-              <th key={header} className="border-b border-slate-100 px-0 py-3 pr-6 text-xs font-bold text-slate-500">
-                {header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr>
-              <td colSpan={headers.length} className="py-8 text-sm font-medium text-slate-500">
-                Belum ada data.
-              </td>
-            </tr>
-          ) : (
-            rows.map((row, rowIndex) => (
-              <tr key={rowIndex}>
-                {row.map((cell, cellIndex) => (
-                  <td
-                    key={cellIndex}
-                    className={[
-                      "border-b border-slate-100 py-3 pr-6 text-slate-500",
-                      cellIndex === 0 ? "font-bold text-slate-800" : "",
-                    ].join(" ")}
-                  >
-                    {cell}
-                  </td>
-                ))}
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function RoleAccessBadge({ label, tone, text }: { label: string; tone: string; text: string }) {
-  return (
-    <div className="grid gap-3 sm:grid-cols-[140px_1fr] sm:items-center">
-      <span className={["inline-flex w-fit min-w-32 justify-center rounded-full px-4 py-1 text-sm font-bold", tone].join(" ")}>
-        {label}
+    <span className="flex items-center gap-3">
+      <span className="grid size-9 shrink-0 place-items-center rounded-xl border border-line bg-canvas text-muted">
+        <Package className="size-4" />
       </span>
-      <p className="font-medium text-slate-800">{text}</p>
-    </div>
+      <span className="min-w-0">
+        <span className="block max-w-[260px] truncate font-medium text-ink">{name}</span>
+        {sku ? <span className="block text-xs text-subtle">{sku}</span> : null}
+      </span>
+    </span>
   );
 }
 
-function StockBadge({ status }: { status: StockStatus }) {
-  const labels: Record<StockStatus, string> = {
-    SAFE: "Aman",
-    LOW: "Rendah",
-    OUT: "Habis",
-  };
-  const classes: Record<StockStatus, string> = {
-    SAFE: "bg-emerald-100 text-emerald-800",
-    LOW: "bg-amber-100 text-amber-800",
-    OUT: "bg-rose-100 text-rose-800",
-  };
-
-  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${classes[status]}`}>{labels[status]}</span>;
-}
-
-function PurchaseStatusBadge({ status }: { status: PurchaseRequestStatus }) {
-  const labels: Record<PurchaseRequestStatus, string> = {
-    DRAFT: "Draft",
-    WAITING_APPROVAL: "Menunggu",
-    APPROVED: "Disetujui",
-    REJECTED: "Ditolak",
-    REVISION_REQUESTED: "Revisi",
-    COMPLETED: "Selesai",
-  };
-  const classes: Record<PurchaseRequestStatus, string> = {
-    DRAFT: "bg-slate-100 text-slate-700",
-    WAITING_APPROVAL: "bg-amber-100 text-amber-800",
-    APPROVED: "bg-emerald-100 text-emerald-800",
-    REJECTED: "bg-rose-100 text-rose-800",
-    REVISION_REQUESTED: "bg-blue-100 text-blue-800",
-    COMPLETED: "bg-slate-900 text-white",
-  };
-
-  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${classes[status]}`}>{labels[status]}</span>;
-}
-
-function formatCurrency(value: string | number) {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(Number(value));
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("id-ID", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+function RoleAccessBadge({ label, tone, text }: { label: string; tone: PillTone; text: string }) {
+  return (
+    <div className="grid gap-2 py-4 first:pt-0 last:pb-0 sm:grid-cols-[160px_1fr] sm:items-center">
+      <Pill tone={tone} className="w-fit">
+        {label}
+      </Pill>
+      <p className="text-sm text-gray-700">{text}</p>
+    </div>
+  );
 }
