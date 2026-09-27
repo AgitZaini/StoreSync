@@ -74,3 +74,28 @@ export function getGreeting(date = new Date()) {
   if (hour < 18) return "Selamat sore";
   return "Selamat malam";
 }
+
+export function formatOpeningHours(pharmacy: { is24h: boolean; openTime: string | null; closeTime: string | null }) {
+  if (pharmacy.is24h) return "Buka 24 jam";
+  return pharmacy.openTime && pharmacy.closeTime ? `${pharmacy.openTime}–${pharmacy.closeTime}` : "-";
+}
+
+/** Bulan "YYYY-MM" → "Oktober 2026". */
+export function formatMonth(month: string) {
+  return new Intl.DateTimeFormat("id-ID", { month: "long", year: "numeric", timeZone: APP_TIME_ZONE }).format(
+    new Date(`${month}-01T12:00:00+07:00`),
+  );
+}
+
+/** Bulan berjalan dalam WIB, format "YYYY-MM". */
+export function currentMonth(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", timeZone: APP_TIME_ZONE })
+    .format(now)
+    .slice(0, 7);
+}
+
+export function shiftMonth(month: string, delta: number) {
+  const [year, monthIndex] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
+  return date.toISOString().slice(0, 7);
+}

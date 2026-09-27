@@ -37,6 +37,13 @@ enum FileStatus {
   UPLOADED
 }
 
+enum PharmacyStatus {
+  /// Calon mitra dari MOU (Tahap 8); belum punya akun kasir.
+  PROSPECT
+  ACTIVE
+  INACTIVE
+}
+
 model User {
   id                 String     @id @default(uuid())
   name               String
@@ -48,12 +55,22 @@ model User {
   mustChangePassword Boolean    @default(true)
   passwordChangedAt  DateTime?
   lastLoginAt        DateTime?
+  /// Tim tempat SPG bernaung (BR-04: satu SPG hanya di satu tim).
+  teamId             String?
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
   refreshTokens RefreshToken[]
   notifications Notification[]
   files         FileObject[]
+  team          Team?          @relation("TeamMembers", fields: [teamId], references: [id])
+  ledTeam       Team?          @relation("TeamLeader")
+  kasirPharmacy Pharmacy?      @relation("PharmacyKasir")
+  placements    Placement[]
+  salesTargets  SalesTarget[]
+
+  @@index([role, status])
+  @@index([teamId])
 }
 
 model RefreshToken {
@@ -126,4 +143,95 @@ model Setting {
   value       Json
   updatedById String?
   updatedAt   DateTime @updatedAt
+}
+
+model Team {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  leaderId  String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leader  User   @relation("TeamLeader", fields: [leaderId], references: [id])
+  members User[] @relation("TeamMembers")
+}
+
+model Pharmacy {
+  id          String         @id @default(uuid())
+  name        String
+  address     String
+  latitude    Float
+  longitude   Float
+  /// Radius absen dalam meter (AB-02, bawaan 20 m).
+  radiusM     Int            @default(20)
+  is24h       Boolean        @default(false)
+  /// Jam buka/tutup "HH:mm" WIB; kosong bila buka 24 jam.
+  openTime    String?
+  closeTime   String?
+  status      PharmacyStatus @default(ACTIVE)
+  /// Akun Kasir Apotek bersama (AKN-03); kosong hanya untuk calon mitra.
+  kasirUserId String?        @unique
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  kasir      User?       @relation("PharmacyKasir", fields: [kasirUserId], references: [id])
+  placements Placement[]
+
+  @@index([status])
+}
+
+/// Penempatan SPG di apotek (maks. 3 aktif per SPG). Tidak dihapus; diakhiri dengan `endedAt`.
+model Placement {
+  id         String    @id @default(uuid())
+  spgId      String
+  pharmacyId String
+  startedAt  DateTime  @default(now())
+  endedAt    DateTime?
+  endReason  String?
+  createdAt  DateTime  @default(now())
+
+  spg      User     @relation(fields: [spgId], references: [id])
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+
+  @@index([spgId, endedAt])
+  @@index([pharmacyId, endedAt])
+}
+
+model Product {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  unit      String
+  price     Decimal  @db.Decimal(14, 2)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/// Target omzet per SPG per bulan (AKN-04).
+model SalesTarget {
+  id        String   @id @default(uuid())
+  spgId     String
+  /// Format YYYY-MM.
+  month     String
+  amount    Decimal  @db.Decimal(14, 2)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  spg User @relation(fields: [spgId], references: [id])
+
+  @@unique([spgId, month])
+  @@index([month])
+}
+
+/// Nominal potongan cuti per hari (AKN-05). Riwayat disimpan karena tarif baru hanya berlaku
+/// untuk cuti yang disetujui setelah `effectiveFrom`.
+model DeductionRate {
+  id            String   @id @default(uuid())
+  amountPerDay  Decimal  @db.Decimal(14, 2)
+  effectiveFrom DateTime @default(now())
+  createdById   String
+  createdAt     DateTime @default(now())
+
+  @@index([effectiveFrom])
 }

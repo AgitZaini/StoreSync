@@ -43,3 +43,53 @@ Checklist ini bertambah setiap tahap selesai. Jalankan di staging (HTTPS) dari l
 - [ ] `UPDATE` atau `DELETE` pada `AuditLog` ditolak database.
 - [ ] Upload foto uji lewat `/api/files/presign` → PUT ke URL → `/complete` berhasil, dan berkas bisa diunduh lewat `GET /api/files/:id`.
 - [ ] SPG lain tidak bisa membuka berkas milik SPG lain (404).
+
+## Tahap 2 — Akun & data utama
+
+Login sebagai Super Admin kecuali disebutkan lain.
+
+### Pengguna dan tim (AKN-01, BR-01, BR-04)
+
+- [ ] Tambah pengguna (Super Admin, Admin, Team Leader, SPG): muncul ringkasan nomor HP + sandi sementara; pengguna itu wajib ganti sandi saat login pertama.
+- [ ] Peran Kasir tidak tersedia di form pengguna (kasir dibuat dari menu Apotek).
+- [ ] Nomor HP yang sudah dipakai ditolak dengan pesan jelas.
+- [ ] Ubah nama/nomor HP/peran berhasil; mengganti peran membuat pengguna itu harus login ulang.
+- [ ] Reset sandi menghasilkan sandi sementara baru dan mengeluarkan pengguna dari semua perangkat.
+- [ ] Menonaktifkan SPG yang masih punya penempatan, atau Team Leader yang masih memimpin tim, ditolak dengan pesan jelas.
+- [ ] Buat tim dengan satu Team Leader; Team Leader yang sudah memimpin tim tidak bisa dipilih untuk tim lain.
+- [ ] Masukkan SPG ke tim dari halaman detail SPG; pindah tim mengirim notifikasi ke leader lama dan baru.
+- [ ] Menu Pengguna, Apotek, Produk & Target, Riwayat, dan Pengaturan hanya muncul untuk Super Admin.
+
+### Apotek (AKN-03, BR-03)
+
+- [ ] Daftarkan apotek: pilih titik di peta (klik, geser penanda, "Lokasi saya", atau tempel koordinat), lingkaran radius 20 m tampil.
+- [ ] Setelah disimpan muncul akun kasir (nomor HP + sandi sementara); kasir bisa login dan wajib ganti sandi.
+- [ ] Titik di luar Indonesia, radius < 10 m, atau jam buka kosong (bukan 24 jam) ditolak.
+- [ ] Mengubah nama/nomor HP kasir di form apotek ikut mengubah akun kasirnya.
+- [ ] Menonaktifkan apotek yang masih ada SPG ditolak; apotek kosong bisa dinonaktifkan dan akun kasirnya tidak bisa login.
+- [ ] Riwayat perubahan apotek tampil di halaman apotek.
+
+### Penempatan SPG (AKN-02)
+
+- [ ] Tempatkan SPG di apotek aktif dari halaman detail SPG; SPG menerima notifikasi "Penempatan baru".
+- [ ] Setelah 3 apotek aktif, tombol Tambah nonaktif dan penempatan ke-4 ditolak.
+- [ ] Lepas penempatan wajib dengan alasan; penempatan lama tetap tampil di "Riwayat penempatan".
+
+### Produk, target, pengaturan (AKN-04, AKN-05)
+
+- [ ] Tambah/ubah produk (kode, nama, satuan, harga); kode ganda ditolak; produk nonaktif tidak terlihat oleh SPG.
+- [ ] Target omzet per SPG per bulan bisa diisi, disalin dari bulan lalu, dan disimpan; total terhitung.
+- [ ] Jatah cuti Team Leader bawaan 15 hari dan bisa diubah.
+- [ ] Menetapkan tarif potongan baru menambah riwayat tarif; tarif lama tidak berubah.
+
+### Batas akses dan beranda (AKN-06, DSB-01 awal)
+
+- [ ] SPG: Beranda menampilkan target bulan ini dan hanya apotek tugasnya.
+- [ ] Team Leader: Beranda menampilkan timnya beserta apotek setiap SPG.
+- [ ] Kasir: Beranda menampilkan apoteknya sendiri.
+- [ ] Super Admin/Admin: Beranda menampilkan jumlah karyawan, apotek, produk, target bulan ini, dan SPG yang belum ditempatkan/belum punya tim.
+- [ ] Membuka alamat halaman Super Admin (mis. `/pengguna`) sebagai peran lain menampilkan "Halaman tidak ditemukan".
+
+### Riwayat (LOG-01)
+
+- [ ] Menu Riwayat menampilkan semua perubahan di atas beserta pelaku, waktu (WIB), dan nilai sebelum → sesudah; bisa difilter per jenis data dan tanggal.

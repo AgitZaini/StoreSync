@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { Server } from "lucide-react";
 import { Link, Outlet } from "react-router-dom";
 import { useCurrentUser, useAuth } from "../features/auth/auth-context";
@@ -11,7 +11,7 @@ import { roleLabels } from "../lib/roles";
 import { cn } from "../lib/utils";
 import { roleNavigation, toNavItem } from "../routes/navigation";
 import { BottomNav, NotificationMenu, SearchBox, Sidebar, UserMenu } from "./layout";
-import { LogoMark } from "./ui";
+import { LogoMark, Spinner } from "./ui";
 
 export function AppShell() {
   const user = useCurrentUser();
@@ -75,7 +75,15 @@ export function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-[1480px] space-y-5 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:py-8">
-          <Outlet />
+          <Suspense
+            fallback={
+              <div className="grid place-items-center py-20">
+                <Spinner />
+              </div>
+            }
+          >
+            <Outlet />
+          </Suspense>
         </main>
       </div>
 

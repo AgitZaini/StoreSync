@@ -11,15 +11,12 @@ import { getErrorMessage } from "../../lib/api";
 import { useApiHealth } from "../../lib/health";
 import { roleLabels } from "../../lib/roles";
 import { cn } from "../../lib/utils";
+import { phoneField } from "../../lib/validation";
 import type { UserRole } from "../../types/auth";
 import { useAuth } from "./auth-context";
 
 const loginSchema = z.object({
-  phone: z
-    .string()
-    .trim()
-    .min(1, "Nomor HP wajib diisi")
-    .refine((value) => value.replace(/\D/g, "").length >= 9, "Nomor HP tidak valid"),
+  phone: phoneField,
   password: z.string().min(1, "Kata sandi wajib diisi"),
 });
 

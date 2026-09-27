@@ -187,7 +187,7 @@ export function Field({
   hint?: ReactNode;
 }) {
   return (
-    <label className="grid gap-1.5">
+    <label className="grid content-start gap-1.5">
       <span className="text-[13px] font-medium text-gray-700">{label}</span>
       {children}
       {error ? (

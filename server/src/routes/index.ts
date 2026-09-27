@@ -1,14 +1,30 @@
 import { Router } from "express";
 import { healthRouter } from "./health.routes";
+import { auditLogsRouter } from "../modules/audit-logs/audit-logs.routes";
 import { authRouter } from "../modules/auth/auth.routes";
+import { dashboardRouter } from "../modules/dashboard/dashboard.routes";
 import { filesRouter } from "../modules/files/files.routes";
 import { notificationsRouter } from "../modules/notifications/notifications.routes";
+import { pharmaciesRouter } from "../modules/pharmacies/pharmacies.routes";
+import { placementsRouter } from "../modules/placements/placements.routes";
+import { productsRouter } from "../modules/products/products.routes";
+import { settingsRouter } from "../modules/settings/settings.routes";
+import { targetsRouter } from "../modules/targets/targets.routes";
+import { teamsRouter } from "../modules/teams/teams.routes";
 import { usersRouter } from "../modules/users/users.routes";
 
 export const apiRouter = Router();
 
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter);
+apiRouter.use("/dashboard", dashboardRouter);
 apiRouter.use("/users", usersRouter);
+apiRouter.use("/teams", teamsRouter);
+apiRouter.use("/pharmacies", pharmaciesRouter);
+apiRouter.use("/placements", placementsRouter);
+apiRouter.use("/products", productsRouter);
+apiRouter.use("/targets", targetsRouter);
+apiRouter.use("/settings", settingsRouter);
+apiRouter.use("/audit-logs", auditLogsRouter);
 apiRouter.use("/files", filesRouter);
 apiRouter.use("/notifications", notificationsRouter);

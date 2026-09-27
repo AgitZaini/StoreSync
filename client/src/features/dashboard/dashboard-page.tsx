@@ -1,4 +1,4 @@
-import { ArrowRight, Bell, LayoutDashboard } from "lucide-react";
+import { ArrowRight, Bell } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card, EmptyState, PageHeader, Pill } from "../../components/ui";
 import { formatDateTime, formatLongDate, formatPhone, getGreeting } from "../../lib/format";
@@ -8,6 +8,7 @@ import type { NavEntry } from "../../routes/navigation";
 import { useCurrentUser } from "../auth/auth-context";
 import { useNotifications } from "../notifications/notifications-api";
 import { useOpenNotification } from "../notifications/use-open-notification";
+import { RoleSummary } from "./role-summary";
 
 function MenuTile({ entry }: { entry: NavEntry }) {
   const available = entry.availableIn === undefined;
@@ -18,14 +19,14 @@ function MenuTile({ entry }: { entry: NavEntry }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="flex items-center justify-between gap-2">
-          <span className="truncate text-sm font-semibold text-ink">{entry.label}</span>
+          <span className="min-w-0 truncate text-sm font-semibold text-ink">{entry.label}</span>
           {available ? <ArrowRight className="size-4 shrink-0 text-subtle" /> : <Pill tone="gray">Segera</Pill>}
         </span>
         <span className="mt-1 block text-xs leading-relaxed text-muted">{entry.description}</span>
       </span>
     </>
   );
-  const className = "group flex gap-3 rounded-2xl border border-line p-4 transition";
+  const className = "group flex min-w-0 gap-3 rounded-2xl border border-line p-4 transition";
 
   return available ? (
     <Link to={entry.path} className={`${className} hover:border-brand-200 hover:bg-brand-50/40`}>
@@ -43,7 +44,7 @@ export function DashboardPage() {
   const notifications = useNotifications();
   const openNotification = useOpenNotification();
   const entries = roleNavigation[user.role];
-  const [home, ...menus] = entries;
+  const menus = entries.slice(1);
   const latestNotifications = (notifications.data ?? []).slice(0, 4);
   const firstName = user.name.split(/\s+/)[0];
 
@@ -56,11 +57,7 @@ export function DashboardPage() {
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
         <div className="min-w-0 space-y-5">
-          <Card title="Ringkasan">
-            <EmptyState icon={LayoutDashboard}>
-              {home.description} akan tampil di sini begitu modulnya aktif.
-            </EmptyState>
-          </Card>
+          <RoleSummary user={user} />
 
           <Card title={`Menu ${roleLabels[user.role]}`}>
             <div className="grid gap-3 sm:grid-cols-2">
