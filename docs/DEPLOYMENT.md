@@ -14,7 +14,16 @@ JWT_ACCESS_SECRET=change-me-access-secret-min-32-chars
 JWT_REFRESH_SECRET=change-me-refresh-secret-min-32-chars
 CLIENT_URL=http://localhost:3000
 CLIENT_PORT=3000
+SESSION_IDLE_MINUTES=45
+S3_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET=storesync
+S3_ACCESS_KEY_ID=change-me
+S3_SECRET_ACCESS_KEY=change-me
+S3_FORCE_PATH_STYLE=false
 ```
+
+Berkas (foto absen, foto kasir, MOU) disimpan di Cloudflare R2. Atur CORS bucket seperti di [VERCEL_NEON_DEPLOYMENT.md](VERCEL_NEON_DEPLOYMENT.md#2b-siapkan-bucket-cloudflare-r2), dengan origin `CLIENT_URL`.
 
 Untuk domain produksi, ubah `CLIENT_URL` menjadi origin frontend, misalnya `https://storesync.example.com`.
 
@@ -46,15 +55,17 @@ npx prisma migrate deploy
 
 setiap kali start. Pastikan migration Prisma sudah tersedia sebelum deploy.
 
+> **Upgrade dari v1:** migrasi v2 memakai baseline baru. Volume database v1 (`storesync_postgres_data`) harus dikosongkan dulu, karena data v1 tidak dipakai di v2.
+
 ## Seed Data
 
-Untuk environment demo/UAT, jalankan seed secara manual:
+Container produksi berjalan dengan `NODE_ENV=production`, sehingga seed tidak membuat akun demo. Buat Super Admin pertama (wajib ganti sandi saat login pertama):
 
 ```bash
-docker compose --env-file .env.production -f docker-compose.prod.yml exec server npm run db:seed
+docker compose --env-file .env.production -f docker-compose.prod.yml exec \
+  -e SEED_SUPER_ADMIN_NAME="Nama Super Admin" -e SEED_SUPER_ADMIN_PHONE="0812xxxxxxxx" -e SEED_SUPER_ADMIN_PASSWORD="SandiSementara1" \
+  server npm run db:seed
 ```
-
-Jangan menjalankan seed demo di produksi nyata tanpa menyesuaikan akun dan password.
 
 ## Smoke Test
 

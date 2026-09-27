@@ -3,7 +3,8 @@ export type NotificationItem = {
   userId: string;
   title: string;
   message: string;
-  readAt?: string | null;
+  link: string | null;
+  readAt: string | null;
   createdAt: string;
 };
 

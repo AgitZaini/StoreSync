@@ -6,12 +6,12 @@ export const authorize =
   (...roles: UserRole[]): RequestHandler =>
   (req, _res, next) => {
     if (!req.user) {
-      next(new AppError(401, "Authentication is required"));
+      next(new AppError(401, "Silakan masuk terlebih dahulu"));
       return;
     }
 
     if (!roles.includes(req.user.role)) {
-      next(new AppError(403, "You do not have access to this resource"));
+      next(new AppError(403, "Anda tidak punya akses ke data ini"));
       return;
     }
 

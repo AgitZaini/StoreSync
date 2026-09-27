@@ -5,8 +5,8 @@ import { env } from "../../config/env";
 
 export type AccessTokenPayload = {
   sub: string;
-  email: string;
   role: UserRole;
+  mustChangePassword: boolean;
 };
 
 export const signAccessToken = (payload: AccessTokenPayload) =>
@@ -26,3 +26,6 @@ export const getRefreshTokenExpiry = () => {
   expiresAt.setDate(expiresAt.getDate() + 7);
   return expiresAt;
 };
+
+export const isRefreshTokenIdle = (lastUsedAt: Date, now = new Date()) =>
+  now.getTime() - lastUsedAt.getTime() > env.SESSION_IDLE_MINUTES * 60 * 1000;

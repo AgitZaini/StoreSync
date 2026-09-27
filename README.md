@@ -1,198 +1,61 @@
-# StoreSync
+# StoreSync v2 — Aplikasi SPG & Team Leader
 
-StoreSync adalah aplikasi monitoring dan manajemen operasional toko berbasis web. Aplikasi ini menghubungkan Pemilik, Supervisor, dan Sales dalam satu platform terpusat untuk mengelola stok, mencatat penjualan, mengatur persetujuan pembelian stok, memantau deposit, dan melihat laporan keuangan.
+StoreSync v2 mengelola SPG dan Team Leader yang menjual produk secara konsinyasi di apotek mitra: absen foto + lokasi, jadwal, order barang, laporan penjualan yang disetujui kasir apotek, retur, stock opname, cuti, dan MOU apotek baru. Aplikasi ini menggantikan pencatatan lewat WhatsApp, Excel, dan Salesmania.
 
-## Tech Stack
+Dokumen acuan:
+
+- [BRD v2.0](docs/BRD_StoreSync_v2.0.md), [PRD v2.0](docs/PRD_StoreSync_v2.0.md), [Flowchart v2.0](docs/flowchart_StoreSync_v2.0.html)
+- [Rencana implementasi bertahap](docs/PLAN_StoreSync_v2.0.md)
+- [Checklist UAT v2](docs/UAT_CHECKLIST_v2.md)
+
+## Status tahapan
+
+- [x] Tahap 1 — Fondasi v2: login nomor HP, 5 peran, wajib ganti sandi pertama, sesi idle, riwayat (audit log) append-only, upload berkas ke R2/MinIO, tampilan responsive
+- [ ] Tahap 2 — Akun & data utama
+- [ ] Tahap 3 — Jadwal & absen SPG
+- [ ] Tahap 4 — Kunjungan Team Leader & lokasi live
+- [ ] Tahap 5 — Stok gudang & order
+- [ ] Tahap 6 — Laporan penjualan, persetujuan kasir & retur
+- [ ] Tahap 7 — Stock opname, serah terima & status gajian
+- [ ] Tahap 8 — Cuti/izin & MOU apotek
+- [ ] Tahap 9 — Dashboard lengkap, notifikasi, rekap, PWA, hardening & uji coba
+- [ ] Tahap 10 — Aplikasi mobile (Android & iOS)
+
+## Tech stack
 
 | Layer | Teknologi |
 | --- | --- |
-| Frontend | React.js + Vite + TypeScript |
-| UI | Tailwind CSS + shadcn/ui-ready structure |
-| Backend | Node.js + Express + TypeScript |
-| Database | PostgreSQL |
-| ORM | Prisma |
-| Auth | JWT access token + refresh token |
-| Export | PDFKit / ExcelJS, planned |
-| Local dev | Docker Compose |
+| Frontend | React 19 + Vite + TypeScript, Tailwind CSS 4, React Router, TanStack Query, React Hook Form + Zod |
+| Backend | Node.js + Express 5 + TypeScript, Zod |
+| Database | PostgreSQL + Prisma |
+| Auth | JWT access token (15 menit) + refresh token berotasi |
+| Berkas | S3-compatible: Cloudflare R2 (produksi), MinIO (lokal) |
+| Deploy | Vercel + Neon, atau Docker Compose |
 
-## Struktur Proyek
+## Menjalankan lokal
 
-```txt
-StoreSync/
-├── client/
-│   ├── src/
-│   │   ├── app/
-│   │   ├── components/
-│   │   ├── features/
-│   │   ├── hooks/
-│   │   ├── lib/
-│   │   ├── routes/
-│   │   ├── store/
-│   │   └── types/
-│   └── public/
-├── server/
-│   ├── prisma/
-│   │   └── schema.prisma
-│   ├── src/
-│   │   ├── config/
-│   │   ├── middleware/
-│   │   ├── modules/
-│   │   ├── routes/
-│   │   ├── utils/
-│   │   ├── app.ts
-│   │   └── server.ts
-│   └── tests/
-├── docs/
-│   └── PRD_StoreSync_v1.0.docx
-└── docker-compose.yml
-```
-
-## Menjalankan Lokal
-
-### 1. Jalankan PostgreSQL
+### 1. Jalankan PostgreSQL dan MinIO
 
 ```bash
 docker compose up -d
 ```
 
-### 2. Setup backend
+MinIO: API di `http://localhost:9100`, console di `http://localhost:9101` (user `storesync`, sandi `storesync_dev`). Bucket `storesync` dibuat otomatis oleh service `minio-setup`.
+
+### 2. Backend
 
 ```bash
 cd server
 cp .env.example .env
 npm install
-npm run prisma:generate
+npx prisma migrate deploy
+npm run db:seed
 npm run dev
 ```
 
-### Backend testing
+API berjalan di `http://localhost:4000/api` (health check: `GET /api/health`).
 
-Integration test backend memakai Jest + Supertest dan database PostgreSQL terpisah `storesync_test`.
-
-```bash
-docker compose up -d
-docker exec storesync-postgres createdb -U storesync storesync_test
-cd server
-DATABASE_URL="postgresql://storesync:storesync_dev@localhost:5432/storesync_test?schema=public" npx prisma migrate deploy
-npm test
-```
-
-Test coverage awal mencakup auth, RBAC, produk/stok, penjualan, SPP, deposit/finance, dashboard, dan notifikasi.
-
-### Verifikasi Fase 7
-
-Checklist UAT tersedia di [docs/UAT_CHECKLIST.md](docs/UAT_CHECKLIST.md). Panduan deployment Docker tersedia di [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Opsi deployment gratis/staging dengan Vercel + Neon tersedia di [docs/VERCEL_NEON_DEPLOYMENT.md](docs/VERCEL_NEON_DEPLOYMENT.md).
-
-Perintah verifikasi sebelum UAT:
-
-```bash
-cd server
-npm test
-npm run build
-
-cd ../client
-npm run build
-```
-
-Deployment Docker produksi MVP:
-
-```bash
-cp .env.production.example .env.production
-docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build
-```
-
-Deployment Vercel + Neon untuk staging gratis:
-
-```bash
-cp .env.vercel.example .env.vercel
-npm run vercel-build
-```
-
-Backend berjalan di:
-
-```txt
-http://localhost:4000
-```
-
-Health check:
-
-```txt
-GET http://localhost:4000/api/health
-```
-
-Seed akun development:
-
-```txt
-Pemilik    owner@storesync.local      Password123!
-Supervisor supervisor@storesync.local Password123!
-Sales      sales@storesync.local      Password123!
-```
-
-Endpoint auth awal:
-
-```txt
-POST /api/auth/login
-GET  /api/auth/me
-POST /api/auth/refresh
-POST /api/auth/logout
-GET  /api/users              # OWNER only
-POST /api/users              # OWNER only
-PATCH /api/users/:id/status  # OWNER only
-```
-
-Endpoint produk dan stok awal:
-
-```txt
-GET  /api/products                         # OWNER, SUPERVISOR, SALES
-POST /api/products                         # OWNER, SUPERVISOR
-GET  /api/products/:id                     # OWNER, SUPERVISOR, SALES
-PATCH /api/products/:id                    # OWNER, SUPERVISOR
-GET  /api/products/categories              # OWNER, SUPERVISOR, SALES
-POST /api/products/categories              # OWNER, SUPERVISOR
-GET  /api/inventory/mutations              # OWNER, SUPERVISOR
-POST /api/inventory/products/:id/adjust    # OWNER, SUPERVISOR
-```
-
-Endpoint penjualan awal:
-
-```txt
-GET  /api/sales       # OWNER/SUPERVISOR melihat semua, SALES melihat milik sendiri
-POST /api/sales       # mencatat transaksi dan otomatis mengurangi stok
-GET  /api/sales/:id   # SALES hanya bisa membuka transaksi milik sendiri
-```
-
-Endpoint SPP pembelian stok:
-
-```txt
-GET  /api/purchase-requests                     # OWNER, SUPERVISOR
-POST /api/purchase-requests                     # OWNER, SUPERVISOR
-GET  /api/purchase-requests/:id                 # OWNER, SUPERVISOR
-POST /api/purchase-requests/:id/approve         # OWNER
-POST /api/purchase-requests/:id/reject          # OWNER
-POST /api/purchase-requests/:id/request-revision # OWNER
-POST /api/purchase-requests/:id/realize         # OWNER, SUPERVISOR
-```
-
-Endpoint deposit dan keuangan:
-
-```txt
-GET  /api/deposits          # OWNER, SUPERVISOR
-POST /api/deposits          # OWNER, SUPERVISOR
-GET  /api/finance/summary   # OWNER, SUPERVISOR
-GET  /api/finance/expenses  # OWNER, SUPERVISOR
-POST /api/finance/expenses  # OWNER, SUPERVISOR
-```
-
-Endpoint dashboard dan notifikasi:
-
-```txt
-GET  /api/dashboard/summary       # Semua role
-GET  /api/notifications           # Semua role
-POST /api/notifications/read-all  # Semua role
-POST /api/notifications/:id/read  # Semua role
-```
-
-### 3. Setup frontend
+### 3. Frontend
 
 ```bash
 cd client
@@ -201,19 +64,75 @@ npm install
 npm run dev
 ```
 
-Frontend berjalan di:
+Frontend berjalan di `http://localhost:3000`.
 
-```txt
-http://localhost:3000
+### Akun demo (dari `npm run db:seed`)
+
+Semua akun memakai kata sandi `Password123!`.
+
+| Peran | Nomor HP |
+| --- | --- |
+| Super Admin | `0812-0000-0001` |
+| Admin | `0812-0000-0002` |
+| Team Leader | `0812-0000-0003` |
+| SPG | `0812-0000-0004` |
+| Kasir Apotek | `0812-0000-0005` |
+| SPG baru (wajib ganti sandi) | `0812-0000-0006` |
+
+Seed dijalankan ulang akan mengembalikan kata sandi akun demo. Untuk environment baru tanpa akun demo, isi `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_PHONE`, dan `SEED_SUPER_ADMIN_PASSWORD`. Dengan `NODE_ENV=production`, seed hanya membuat Super Admin tersebut.
+
+## Testing
+
+Test integrasi memakai Jest + Supertest dengan database terpisah `storesync_test`. Test selalu memakai database ini (atau `TEST_DATABASE_URL`), dan menolak mengosongkan database yang namanya tidak mengandung `test`.
+
+```bash
+docker exec storesync-postgres createdb -U storesync storesync_test
+cd server
+DATABASE_URL="postgresql://storesync:storesync_dev@localhost:5432/storesync_test?schema=public" npx prisma migrate deploy
+npm test
 ```
 
-## Roadmap MVP
+Verifikasi sebelum UAT:
 
-- [x] Fase 0: project foundation
-- [x] Fase 1: autentikasi dan RBAC
-- [x] Fase 2: manajemen produk dan stok
-- [x] Fase 3: pencatatan penjualan
-- [x] Fase 4: alur SPP dan approval pembelian stok
-- [x] Fase 5: deposit dan laporan keuangan dasar
-- [x] Fase 6: dashboard per peran dan notifikasi
-- [x] Fase 7: testing, UAT, dan deployment
+```bash
+cd server && npm test && npm run build
+cd ../client && npm run lint && npm run build
+```
+
+## Endpoint API (Tahap 1)
+
+```txt
+POST  /api/auth/login              { phone, password } — nomor 08xx / +62 / 62 diterima
+GET   /api/auth/me
+POST  /api/auth/refresh            { refreshToken } — token berotasi; ditolak bila idle > SESSION_IDLE_MINUTES
+POST  /api/auth/change-password    { currentPassword, newPassword }
+POST  /api/auth/logout             { refreshToken }
+
+GET   /api/users                   Super Admin
+POST  /api/users                   Super Admin — akun baru wajib ganti sandi saat login pertama
+PATCH /api/users/:id/status        Super Admin
+
+POST  /api/files/presign           { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
+POST  /api/files/:id/complete      verifikasi berkas sudah terunggah
+GET   /api/files/:id               URL unduh sementara (pengunggah, Admin, Super Admin)
+
+GET   /api/notifications
+POST  /api/notifications/read-all
+POST  /api/notifications/:id/read
+```
+
+Selama `mustChangePassword` aktif, semua endpoint kecuali `/auth/me`, `/auth/change-password`, dan `/auth/logout` menjawab `403` dengan `code: "PASSWORD_CHANGE_REQUIRED"`.
+
+## Aturan pengembangan
+
+- Modul server mengikuti pola `server/src/modules/<modul>/{routes,controller,service,schemas}.ts`.
+- Setiap perubahan data berjalan di `prisma.$transaction` dan mencatat riwayat lewat `recordAudit(tx, …)` (`server/src/utils/audit.ts`). Tabel `AuditLog` dilindungi trigger database: tidak bisa di-update atau di-delete.
+- Tanggal bisnis memakai WIB (`server/src/utils/time.ts`). Client juga menampilkan jam dalam WIB.
+- Halaman client ada di `client/src/features/<modul>/`, menu per peran di `client/src/routes/navigation.ts`.
+
+## Deployment
+
+- Vercel + Neon + R2: [docs/VERCEL_NEON_DEPLOYMENT.md](docs/VERCEL_NEON_DEPLOYMENT.md)
+- Docker Compose: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+
+> **Upgrade dari v1:** migrasi Prisma v2 memakai baseline baru. Database v1 yang sudah ada harus dikosongkan dulu sebelum `prisma migrate deploy`, karena data v1 tidak dipakai lagi.

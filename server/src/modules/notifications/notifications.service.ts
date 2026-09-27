@@ -1,7 +1,7 @@
 import { UserRole } from "@prisma/client";
 import { prisma } from "../../utils/prisma";
 
-export const notifyUsersByRole = async (roles: UserRole[], title: string, message: string) => {
+export const notifyUsersByRole = async (roles: UserRole[], title: string, message: string, link?: string) => {
   const users = await prisma.user.findMany({
     where: {
       role: { in: roles },
@@ -19,16 +19,18 @@ export const notifyUsersByRole = async (roles: UserRole[], title: string, messag
       userId: user.id,
       title,
       message,
+      link,
     })),
   });
 };
 
-export const notifyUser = async (userId: string, title: string, message: string) =>
+export const notifyUser = async (userId: string, title: string, message: string, link?: string) =>
   prisma.notification.create({
     data: {
       userId,
       title,
       message,
+      link,
     },
   });
 
