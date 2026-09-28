@@ -10,6 +10,8 @@ export const buttonStyles = {
   ),
   secondary: cn(buttonBase, "border border-line bg-white text-ink shadow-card hover:bg-canvas"),
   danger: cn(buttonBase, "border border-red-100 bg-red-50 text-red-600 hover:bg-red-100"),
+  dangerSolid: cn(buttonBase, "bg-red-600 text-white shadow-card hover:bg-red-700"),
+  ghost: cn(buttonBase, "text-muted hover:bg-canvas hover:text-ink"),
   small: "h-8 rounded-lg px-3 text-xs",
 };
 

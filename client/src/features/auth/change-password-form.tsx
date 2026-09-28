@@ -8,23 +8,14 @@ import { buttonStyles } from "../../components/styles";
 import { Field, Notice } from "../../components/ui";
 import { api, getErrorMessage } from "../../lib/api";
 import { cn } from "../../lib/utils";
+import { newPasswordField, passwordRules } from "../../lib/validation";
 import type { AuthResponse } from "../../types/auth";
 import { useAuth } from "./auth-context";
-
-// Sama dengan aturan di server (auth.schemas.ts).
-const passwordRules = [
-  { label: "Minimal 8 karakter", test: (value: string) => value.length >= 8 },
-  { label: "Mengandung huruf", test: (value: string) => /[A-Za-z]/.test(value) },
-  { label: "Mengandung angka", test: (value: string) => /\d/.test(value) },
-];
 
 const changePasswordSchema = z
   .object({
     currentPassword: z.string().min(1, "Kata sandi saat ini wajib diisi"),
-    newPassword: z
-      .string()
-      .max(72, "Kata sandi maksimal 72 karakter")
-      .refine((value) => passwordRules.every((rule) => rule.test(value)), "Kata sandi baru belum memenuhi syarat"),
+    newPassword: newPasswordField,
     confirmPassword: z.string(),
   })
   .refine((values) => values.newPassword === values.confirmPassword, {

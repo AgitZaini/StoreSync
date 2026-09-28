@@ -43,3 +43,93 @@ Checklist ini bertambah setiap tahap selesai. Jalankan di staging (HTTPS) dari l
 - [ ] `UPDATE` atau `DELETE` pada `AuditLog` ditolak database.
 - [ ] Upload foto uji lewat `/api/files/presign` → PUT ke URL → `/complete` berhasil, dan berkas bisa diunduh lewat `GET /api/files/:id`.
 - [ ] SPG lain tidak bisa membuka berkas milik SPG lain (404).
+
+## Tahap 2 — Akun & data utama
+
+Login sebagai Super Admin kecuali disebutkan lain.
+
+### Pengguna dan tim (AKN-01, BR-01, BR-04)
+
+- [ ] Tambah pengguna (Super Admin, Admin, Team Leader, SPG): muncul ringkasan nomor HP + sandi sementara; pengguna itu wajib ganti sandi saat login pertama.
+- [ ] Peran Kasir tidak tersedia di form pengguna (kasir dibuat dari menu Apotek).
+- [ ] Nomor HP yang sudah dipakai ditolak dengan pesan jelas.
+- [ ] Ubah nama/nomor HP/peran berhasil; mengganti peran membuat pengguna itu harus login ulang.
+- [ ] Reset sandi menghasilkan sandi sementara baru dan mengeluarkan pengguna dari semua perangkat.
+- [ ] Menonaktifkan SPG yang masih punya penempatan, atau Team Leader yang masih memimpin tim, ditolak dengan pesan jelas.
+- [ ] Buat tim dengan satu Team Leader; Team Leader yang sudah memimpin tim tidak bisa dipilih untuk tim lain.
+- [ ] Masukkan SPG ke tim dari halaman detail SPG; pindah tim mengirim notifikasi ke leader lama dan baru.
+- [ ] Menu Pengguna, Apotek, Produk & Target, Riwayat, dan Pengaturan hanya muncul untuk Super Admin.
+
+### Apotek (AKN-03, BR-03)
+
+- [ ] Daftarkan apotek: pilih titik di peta (klik, geser penanda, "Lokasi saya", atau tempel koordinat), lingkaran radius 20 m tampil.
+- [ ] Setelah disimpan muncul akun kasir (nomor HP + sandi sementara); kasir bisa login dan wajib ganti sandi.
+- [ ] Titik di luar Indonesia, radius < 10 m, atau jam buka kosong (bukan 24 jam) ditolak.
+- [ ] Mengubah nama/nomor HP kasir di form apotek ikut mengubah akun kasirnya.
+- [ ] Menonaktifkan apotek yang masih ada SPG ditolak; apotek kosong bisa dinonaktifkan dan akun kasirnya tidak bisa login.
+- [ ] Riwayat perubahan apotek tampil di halaman apotek.
+
+### Penempatan SPG (AKN-02)
+
+- [ ] Tempatkan SPG di apotek aktif dari halaman detail SPG; SPG menerima notifikasi "Penempatan baru".
+- [ ] Setelah 3 apotek aktif, tombol Tambah nonaktif dan penempatan ke-4 ditolak.
+- [ ] Lepas penempatan wajib dengan alasan; penempatan lama tetap tampil di "Riwayat penempatan".
+
+### Produk, target, pengaturan (AKN-04, AKN-05)
+
+- [ ] Tambah/ubah produk (kode, nama, satuan, harga); kode ganda ditolak; produk nonaktif tidak terlihat oleh SPG.
+- [ ] Target omzet per SPG per bulan bisa diisi, disalin dari bulan lalu, dan disimpan; total terhitung.
+- [ ] Jatah cuti Team Leader bawaan 15 hari dan bisa diubah.
+- [ ] Menetapkan tarif potongan baru menambah riwayat tarif; tarif lama tidak berubah.
+
+### Batas akses dan beranda (AKN-06, DSB-01 awal)
+
+- [ ] SPG: Beranda menampilkan target bulan ini dan hanya apotek tugasnya.
+- [ ] Team Leader: Beranda menampilkan timnya beserta apotek setiap SPG.
+- [ ] Kasir: Beranda menampilkan apoteknya sendiri.
+- [ ] Super Admin/Admin: Beranda menampilkan jumlah karyawan, apotek, produk, target bulan ini, dan SPG yang belum ditempatkan/belum punya tim.
+- [ ] Membuka alamat halaman Super Admin (mis. `/pengguna`) sebagai peran lain menampilkan "Halaman tidak ditemukan".
+
+### Riwayat (LOG-01)
+
+- [ ] Menu Riwayat menampilkan semua perubahan di atas beserta pelaku, waktu (WIB), dan nilai sebelum → sesudah; bisa difilter per jenis data dan tanggal.
+
+## Tahap 3 — Jadwal & absen SPG
+
+Uji absen dari HP sungguhan lewat HTTPS (staging), di dalam dan di luar apotek demo. Kamera dan GPS butuh izin browser.
+
+### Jadwal (JDW-01, JDW-02)
+
+- [ ] Admin: menu Jadwal Mingguan menampilkan setiap pasangan SPG–apotek untuk minggu berjalan (Senin–Minggu).
+- [ ] Klik sel → isi jam masuk/pulang, tandai libur, atau kosongkan; "Terapkan juga ke" mengisi beberapa hari sekaligus.
+- [ ] Hari saat SPG tidak ditempatkan di apotek itu tidak bisa diisi (sel "—").
+- [ ] "Salin minggu lalu" hanya mengisi sel yang masih kosong; "Batalkan" membuang perubahan; "Simpan" menyimpan dan SPG menerima notifikasi "Jadwal diperbarui".
+- [ ] Pindah minggu/filter dengan perubahan belum disimpan memunculkan peringatan.
+- [ ] SPG: menu Jadwal menampilkan jadwal minggu ini dan minggu depan. Team Leader: menu Tim Saya menampilkan jadwal tim.
+- [ ] Setiap perubahan jadwal tercatat di Riwayat.
+
+### Absen SPG (ABS-01, AB-01…AB-03)
+
+- [ ] Menu Absen menampilkan hanya apotek tugas, jadwal hari ini, akurasi GPS, dan jarak ke apotek.
+- [ ] Tombol absen membuka kamera depan langsung (tidak ada pilihan galeri); wajah harus satu, cukup dekat, dan berkedip sebelum foto diambil otomatis.
+- [ ] Foto tersimpan dengan cap nama, jenis absen, apotek, dan jam WIB.
+- [ ] Absen di dalam radius tercatat dengan jam server; di luar radius ditolak dengan jarak ditampilkan.
+- [ ] GPS kurang akurat dari batas di Pengaturan ditolak dengan pesan jelas.
+- [ ] Absen pulang hanya setelah absen masuk; absen masuk kedua di hari yang sama ditolak; masuk di apotek lain sebelum pulang ditolak.
+- [ ] Bila verifikasi wajah tidak bisa berjalan (atau tidak berkedip 30 detik), foto tetap bisa diambil lalu diajukan sebagai pengecualian.
+- [ ] Izin kamera/lokasi ditolak menampilkan cara mengizinkannya.
+
+### Pengecualian absen
+
+- [ ] SPG yang ditolak (di luar radius/GPS/wajah) bisa mengajukan pengecualian dengan alasan; Admin menerima notifikasi.
+- [ ] Admin: tab Pengecualian menampilkan foto, jarak, akurasi, alasan, dan tautan peta; Setujui mencatat absen dengan jam saat SPG mencoba; Tolak wajib beralasan.
+- [ ] SPG menerima notifikasi hasilnya; setelah ditolak SPG bisa absen lagi.
+
+### Pemantauan (ABS-04)
+
+- [ ] Admin: Pemantauan Absen menampilkan ringkasan (terjadwal, tepat waktu, telat, belum absen, tidak masuk, libur, tanpa jadwal) dan status per SPG untuk tanggal terpilih.
+- [ ] Telat menampilkan selisih menit; toleransi telat di Pengaturan hanya mengubah label, jam absen tidak berubah.
+- [ ] Detail baris menampilkan foto masuk/pulang, jarak, akurasi, dan tautan peta; Admin bisa menambah catatan alasan (tanpa potongan otomatis).
+- [ ] Super Admin bisa melihat Pemantauan (lewat Beranda) tetapi tidak bisa menulis catatan atau menyetujui pengecualian.
+- [ ] Team Leader hanya melihat absen dan foto SPG timnya.
+- [ ] Beranda: Admin/Super Admin/Team Leader melihat kartu "Absen hari ini"; SPG melihat kartu "Hari ini" dengan tombol Buka absen.

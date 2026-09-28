@@ -11,8 +11,8 @@ Dokumen acuan:
 ## Status tahapan
 
 - [x] Tahap 1 — Fondasi v2: login nomor HP, 5 peran, wajib ganti sandi pertama, sesi idle, riwayat (audit log) append-only, upload berkas ke R2/MinIO, tampilan responsive
-- [ ] Tahap 2 — Akun & data utama
-- [ ] Tahap 3 — Jadwal & absen SPG
+- [x] Tahap 2 — Akun & data utama: pengguna, tim, apotek + akun kasir otomatis (peta & radius), penempatan SPG maks. 3 apotek, produk, target omzet, pengaturan cuti/potongan, riwayat, batas akses per peran
+- [x] Tahap 3 — Jadwal & absen SPG: jadwal mingguan oleh Admin, absen foto langsung + deteksi wajah/kedip + radius GPS, pemantauan telat/tidak masuk, pengecualian absen disetujui Admin
 - [ ] Tahap 4 — Kunjungan Team Leader & lokasi live
 - [ ] Tahap 5 — Stok gudang & order
 - [ ] Tahap 6 — Laporan penjualan, persetujuan kasir & retur
@@ -25,7 +25,7 @@ Dokumen acuan:
 
 | Layer | Teknologi |
 | --- | --- |
-| Frontend | React 19 + Vite + TypeScript, Tailwind CSS 4, React Router, TanStack Query, React Hook Form + Zod |
+| Frontend | React 19 + Vite + TypeScript, Tailwind CSS 4, React Router, TanStack Query, React Hook Form + Zod, Leaflet + OpenStreetMap, MediaPipe Face Landmarker (di-host sendiri) |
 | Backend | Node.js + Express 5 + TypeScript, Zod |
 | Database | PostgreSQL + Prisma |
 | Auth | JWT access token (15 menit) + refresh token berotasi |
@@ -70,16 +70,18 @@ Frontend berjalan di `http://localhost:3000`.
 
 Semua akun memakai kata sandi `Password123!`.
 
-| Peran | Nomor HP |
-| --- | --- |
-| Super Admin | `0812-0000-0001` |
-| Admin | `0812-0000-0002` |
-| Team Leader | `0812-0000-0003` |
-| SPG | `0812-0000-0004` |
-| Kasir Apotek | `0812-0000-0005` |
-| SPG baru (wajib ganti sandi) | `0812-0000-0006` |
+| Peran | Nomor HP | Keterangan |
+| --- | --- | --- |
+| Super Admin | `0812-0000-0001` | |
+| Admin | `0812-0000-0002` | |
+| Team Leader | `0812-0000-0003` | Memimpin "Tim Demo Jakarta" |
+| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan |
+| SPG baru | `0812-0000-0006` | Wajib ganti sandi; belum ditempatkan |
+| Kasir Apotek | `0812-0000-0005` | Kasir Apotek Demo Sehat |
+| Kasir Apotek | `0812-0000-0011` | Kasir Apotek Demo Keluarga |
+| Kasir Apotek | `0812-0000-0012` | Kasir Apotek Demo Harapan 24 Jam |
 
-Seed dijalankan ulang akan mengembalikan kata sandi akun demo. Untuk environment baru tanpa akun demo, isi `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_PHONE`, dan `SEED_SUPER_ADMIN_PASSWORD`. Dengan `NODE_ENV=production`, seed hanya membuat Super Admin tersebut.
+Seed juga membuat 5 produk demo (kode `DEMO-…`) dan target omzet bulan berjalan. Menjalankan seed ulang akan mengembalikan kata sandi dan data demo. Untuk environment baru tanpa akun demo, isi `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_PHONE`, dan `SEED_SUPER_ADMIN_PASSWORD`. Dengan `NODE_ENV=production`, seed hanya membuat Super Admin tersebut.
 
 ## Testing
 
@@ -99,23 +101,67 @@ cd server && npm test && npm run build
 cd ../client && npm run lint && npm run build
 ```
 
-## Endpoint API (Tahap 1)
+## Endpoint API
+
+Semua endpoint (kecuali login/refresh/health) butuh `Authorization: Bearer <accessToken>`. Batas data per peran (AKN-06) diterapkan di server: SPG hanya datanya sendiri, Team Leader timnya, Kasir apoteknya, Admin dan Super Admin semua.
 
 ```txt
-POST  /api/auth/login              { phone, password } — nomor 08xx / +62 / 62 diterima
+# Auth (Tahap 1)
+POST  /api/auth/login                { phone, password } — nomor 08xx / +62 / 62 diterima
 GET   /api/auth/me
-POST  /api/auth/refresh            { refreshToken } — token berotasi; ditolak bila idle > SESSION_IDLE_MINUTES
-POST  /api/auth/change-password    { currentPassword, newPassword }
-POST  /api/auth/logout             { refreshToken }
+POST  /api/auth/refresh              { refreshToken } — berotasi; ditolak bila idle > SESSION_IDLE_MINUTES
+POST  /api/auth/change-password      { currentPassword, newPassword }
+POST  /api/auth/logout               { refreshToken }
 
-GET   /api/users                   Super Admin
-POST  /api/users                   Super Admin — akun baru wajib ganti sandi saat login pertama
-PATCH /api/users/:id/status        Super Admin
+# Pengguna & tim (Tahap 2)
+GET   /api/users                     Super Admin, Admin — filter role, status, teamId, q
+GET   /api/users/:id                 Super Admin, Admin
+POST  /api/users                     Super Admin — bukan untuk KASIR (dibuat bersama apotek)
+PATCH /api/users/:id                 Super Admin — nama, nomor HP, peran
+PATCH /api/users/:id/status          Super Admin — SPG harus bebas penempatan, TL tidak memimpin tim
+POST  /api/users/:id/reset-password  Super Admin — sandi sementara, wajib diganti
+PATCH /api/users/:id/team            Super Admin — { teamId | null }, hanya SPG
+GET   /api/teams                     Super Admin, Admin (semua), Team Leader (timnya)
+POST  /api/teams, PATCH /api/teams/:id   Super Admin — satu leader satu tim
 
-POST  /api/files/presign           { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
-POST  /api/files/:id/complete      verifikasi berkas sudah terunggah
-GET   /api/files/:id               URL unduh sementara (pengunggah, Admin, Super Admin)
+# Apotek & penempatan (Tahap 2)
+GET   /api/pharmacies, /api/pharmacies/:id   semua peran (sesuai batas akses)
+POST  /api/pharmacies                Super Admin — akun Kasir Apotek dibuat otomatis
+PATCH /api/pharmacies/:id            Super Admin
+PATCH /api/pharmacies/:id/status     Super Admin — ACTIVE/INACTIVE, akun kasir ikut
+GET   /api/placements                semua peran (sesuai batas akses)
+POST  /api/placements                Super Admin — maks. 3 apotek aktif per SPG
+POST  /api/placements/:id/end        Super Admin — { reason }
 
+# Produk, target, pengaturan, riwayat, dashboard (Tahap 2)
+GET   /api/products                  semua peran (produk aktif; Admin/SA bisa includeInactive=true)
+POST  /api/products, PATCH /api/products/:id   Super Admin
+GET   /api/targets?month=YYYY-MM     Super Admin, Admin, Team Leader, SPG
+PUT   /api/targets/:month            Super Admin — { targets: [{ spgId, amount | null }] }
+GET   /api/settings                  Super Admin
+PUT   /api/settings/leave-quota      Super Admin — { days }
+POST  /api/settings/deduction-rates  Super Admin — { amountPerDay }, berlaku mulai sekarang
+GET   /api/audit-logs                Super Admin — filter entity, entityId, actorId, action, from, to; cursor
+GET   /api/dashboard/overview        Super Admin, Admin
+
+# Jadwal & absen (Tahap 3)
+GET   /api/schedules?weekStart=YYYY-MM-DD      Super Admin, Admin, Team Leader, SPG — minggu mulai Senin
+PUT   /api/schedules/week/:weekStart           Admin — { entries: [{ spgId, pharmacyId, date, value | null }] }
+POST  /api/attendance                          SPG — { pharmacyId, kind, photoFileId, latitude, longitude, accuracyM, faceCheck }
+GET   /api/attendance/today                    SPG — status absen di setiap apotek tugas hari ini
+GET   /api/attendance?from=&to=&spgId=         Super Admin, Admin, Team Leader, SPG — riwayat
+GET   /api/attendance/monitor?date=            Super Admin, Admin, Team Leader — jadwal vs absen
+PUT   /api/attendance/notes                    Admin — catatan telat/tidak masuk
+POST  /api/attendance/exceptions               SPG — pengecualian saat GPS/verifikasi wajah gagal
+GET   /api/attendance/exceptions?status=       Super Admin, Admin, Team Leader, SPG
+POST  /api/attendance/exceptions/:id/approve   Admin — absen dicatat dengan jam saat SPG mencoba
+POST  /api/attendance/exceptions/:id/reject    Admin — { note }
+PUT   /api/settings/attendance                 Super Admin — { maxAccuracyM, lateToleranceMinutes }
+
+# Berkas & notifikasi (Tahap 1)
+POST  /api/files/presign             { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
+POST  /api/files/:id/complete        verifikasi berkas sudah terunggah
+GET   /api/files/:id                 URL unduh sementara (pengunggah, Admin, Super Admin, Team Leader untuk timnya)
 GET   /api/notifications
 POST  /api/notifications/read-all
 POST  /api/notifications/:id/read
@@ -127,8 +173,10 @@ Selama `mustChangePassword` aktif, semua endpoint kecuali `/auth/me`, `/auth/cha
 
 - Modul server mengikuti pola `server/src/modules/<modul>/{routes,controller,service,schemas}.ts`.
 - Setiap perubahan data berjalan di `prisma.$transaction` dan mencatat riwayat lewat `recordAudit(tx, …)` (`server/src/utils/audit.ts`). Tabel `AuditLog` dilindungi trigger database: tidak bisa di-update atau di-delete.
+- Query list/get memakai batas akses dari `scopeFor(actor)` (`server/src/utils/scope.ts`).
 - Tanggal bisnis memakai WIB (`server/src/utils/time.ts`). Client juga menampilkan jam dalam WIB.
 - Halaman client ada di `client/src/features/<modul>/`, menu per peran di `client/src/routes/navigation.ts`.
+- Absen (`Attendance`) juga append-only di database. Absen web memakai kamera langsung + deteksi wajah/kedip MediaPipe; model `client/src/assets/models/face_landmarker.task` dan WASM-nya di-host sendiri (±7 MB setelah kompresi, diunduh sekali lalu di-cache). Deteksi lokasi palsu dan tracking latar belakang menyusul di aplikasi mobile (Tahap 10).
 
 ## Deployment
 

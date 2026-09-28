@@ -1,7 +1,6 @@
 import { asyncHandler } from "../../utils/async-handler";
+import { routeParam } from "../../utils/params";
 import * as notificationsService from "./notifications.service";
-
-const getParam = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
 
 export const listNotifications = asyncHandler(async (req, res) => {
   const notifications = await notificationsService.listNotifications(req.user!.id);
@@ -9,7 +8,7 @@ export const listNotifications = asyncHandler(async (req, res) => {
 });
 
 export const markNotificationRead = asyncHandler(async (req, res) => {
-  await notificationsService.markNotificationRead(getParam(req.params.id)!, req.user!.id);
+  await notificationsService.markNotificationRead(routeParam(req, "id"), req.user!.id);
   res.status(204).send();
 });
 

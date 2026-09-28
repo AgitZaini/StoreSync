@@ -1,7 +1,9 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { LoadingScreen } from "../components/ui";
 import { useAuth } from "../features/auth/auth-context";
+import type { UserRole } from "../types/auth";
 import { isPathAvailableForRole } from "./navigation";
+import { NotFoundPage } from "./not-found-page";
 
 const CHANGE_PASSWORD_PATH = "/ganti-sandi";
 
@@ -45,4 +47,11 @@ export function RedirectIfAuthenticated() {
   }
 
   return <Outlet />;
+}
+
+/** Halaman khusus peran tertentu; peran lain melihat halaman "tidak ditemukan". Server tetap memeriksa akses. */
+export function RequireRole({ roles }: { roles: UserRole[] }) {
+  const { user } = useAuth();
+
+  return user && roles.includes(user.role) ? <Outlet /> : <NotFoundPage />;
 }

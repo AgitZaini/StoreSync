@@ -4,6 +4,7 @@ import type { FileObject } from "@prisma/client";
 import { AppError } from "../../middleware/error-handler";
 import type { AuditActor } from "../../utils/audit";
 import { prisma } from "../../utils/prisma";
+import { scopeFor } from "../../utils/scope";
 import { storage } from "../../utils/storage";
 import { businessDate } from "../../utils/time";
 import { FILE_EXTENSIONS } from "./file.schemas";
@@ -11,9 +12,19 @@ import type { PresignFileInput } from "./file.schemas";
 
 const FILE_NOT_FOUND = "Berkas tidak ditemukan";
 
-// Tahap berikutnya menambah aturan akses sesuai data yang memakai berkas (mis. TL melihat foto absen timnya).
-const canAccessFile = (actor: AuditActor, file: FileObject) =>
-  file.uploadedById === actor.id || actor.role === UserRole.SUPER_ADMIN || actor.role === UserRole.ADMIN;
+/** Pengunggah, Admin, dan Super Admin selalu boleh; Team Leader boleh melihat berkas anggota timnya. */
+const canAccessFile = async (actor: AuditActor, file: FileObject) => {
+  if (file.uploadedById === actor.id || actor.role === UserRole.SUPER_ADMIN || actor.role === UserRole.ADMIN) {
+    return true;
+  }
+
+  if (actor.role === UserRole.TEAM_LEADER) {
+    const scope = await scopeFor(actor);
+    return scope.kind === "team" && scope.spgIds.includes(file.uploadedById);
+  }
+
+  return false;
+};
 
 export const createUpload = async (input: PresignFileInput, actor: AuditActor) => {
   const month = businessDate().slice(0, 7);
@@ -70,7 +81,7 @@ export const completeUpload = async (fileId: string, actor: AuditActor) => {
 export const getFile = async (fileId: string, actor: AuditActor) => {
   const file = await prisma.fileObject.findUnique({ where: { id: fileId } });
 
-  if (!file || !canAccessFile(actor, file)) {
+  if (!file || !(await canAccessFile(actor, file))) {
     throw new AppError(404, FILE_NOT_FOUND);
   }
 
