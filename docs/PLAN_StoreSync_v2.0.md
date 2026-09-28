@@ -82,7 +82,7 @@ Urutan ini mengikuti ketergantungan data: master data → absen (hanya butuh apo
 - Enum `UserRole`: `SUPER_ADMIN, ADMIN, TEAM_LEADER, SPG, KASIR`.
 - Trigger SQL di migrasi yang menolak `UPDATE`/`DELETE` pada tabel audit log, supaya riwayat tidak bisa diubah (LOG-01).
 - Auth: login `{phone, password}` dengan normalisasi nomor (08xx → 628xx). Endpoint `POST /auth/change-password`. Middleware yang memblokir endpoint lain selama `mustChangePassword` masih aktif. Sesi berakhir bila tidak aktif (env `SESSION_IDLE_MINUTES`, dicek di refresh). Rate limit login (`express-rate-limit`) dan `helmet`.
-- Util baru: `utils/audit.ts` (`recordAudit`), `utils/time.ts` (helper WIB via `date-fns-tz`), `utils/scope.ts` (`scopeFor`), `utils/storage.ts` (adapter S3 via `@aws-sdk/client-s3` dan presigner).
+- Util baru: `utils/audit.ts` (`recordAudit`), `utils/time.ts` (helper WIB memakai `Intl`, karena WIB tidak punya daylight saving), `utils/phone.ts` (normalisasi nomor HP), `utils/storage.ts` (adapter S3 via `@aws-sdk/client-s3` dan presigner). `utils/scope.ts` (`scopeFor`) dibuat di Tahap 2 bersama data tim, apotek, dan penempatan yang dibutuhkannya.
 - Modul `files`: `POST /files/presign` (purpose, mime, size) untuk URL upload langsung ke R2, dan `GET /files/:id` untuk URL baca yang aksesnya dicek. Upload langsung dari browser dipakai karena batas body fungsi Vercel 4,5 MB.
 - `docker-compose.yml`: tambah service MinIO. Env baru: `S3_ENDPOINT`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `SESSION_IDLE_MINUTES` (di `config/env.ts` dan `.env*.example`).
 - Seed: satu akun per peran dengan nomor HP dummy, dicatat di seed dan README.
@@ -109,6 +109,7 @@ Urutan ini mengikuti ketergantungan data: master data → absen (hanya butuh apo
 - `teams` dan `placements`: maksimal 3 penempatan aktif per SPG, dicek di dalam transaksi. Penempatan ke-4 ditolak dengan pesan jelas. SPG hanya boleh ada di 1 tim. Perubahan penempatan tercatat di riwayat.
 - `products`, `targets` (per SPG per bulan, bisa bulk), dan `settings`.
 - `audit-logs`: `GET` dengan filter entity/user/tanggal (hanya SA).
+- `utils/scope.ts` (`scopeFor`): batas akses data per peran (AKN-06), dipakai semua modul berikutnya.
 
 **Frontend (SA):** Pengguna & penempatan, Apotek (form dengan **peta Leaflet + OpenStreetMap** untuk memilih titik dan pratinjau lingkaran radius), Produk & target, Pengaturan (jatah cuti, potongan per hari), dan Riwayat.
 
@@ -331,7 +332,7 @@ Backend yang sama. Admin tetap memakai web. SPG, TL, dan Kasir pindah ke app. SA
   - `server/prisma/schema.prisma` (ditulis ulang), `server/prisma/migrations/*` (baseline baru), `server/prisma/seed.ts`
   - `server/src/routes/index.ts`, `server/src/config/env.ts`, `server/src/middleware/authorize.ts`
   - `server/src/modules/auth/*`, `server/src/modules/users/*`, `server/src/modules/<modul-baru>/*`
-  - `server/src/utils/{audit,time,scope,storage}.ts` (baru)
+  - `server/src/utils/{audit,time,phone,scope,storage}.ts` (baru)
   - `server/tests/helpers/*`, `server/tests/integration/*`
 - Client:
   - `client/src/App.tsx` (dipecah), `client/src/app/*`, `client/src/routes/*`, `client/src/features/*`

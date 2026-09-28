@@ -4,8 +4,8 @@ declare global {
   namespace Express {
     interface User {
       id: string;
-      email: string;
       role: UserRole;
+      mustChangePassword: boolean;
     }
 
     interface Request {

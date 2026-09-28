@@ -1,33 +1,28 @@
 import { z } from "zod";
-
-const moneySchema = z.coerce.number().nonnegative();
-
-export const createCategorySchema = z.object({
-  name: z.string().min(2).max(80),
-});
+import { queryBooleanSchema, rupiahSchema } from "../../utils/schemas";
 
 export const createProductSchema = z.object({
-  name: z.string().min(2).max(120),
-  sku: z.string().min(2).max(60),
-  unit: z.string().min(1).max(30),
-  purchasePrice: moneySchema,
-  sellingPrice: moneySchema,
-  stockQuantity: z.coerce.number().int().min(0).default(0),
-  minimumStock: z.coerce.number().int().min(0).default(0),
-  categoryId: z.string().uuid().optional(),
+  code: z
+    .string()
+    .trim()
+    .min(1)
+    .max(40)
+    .regex(/^[A-Za-z0-9._-]+$/, "Kode hanya boleh huruf, angka, titik, strip, atau garis bawah")
+    .transform((code) => code.toUpperCase()),
+  name: z.string().trim().min(2).max(160),
+  unit: z.string().trim().min(1).max(30),
+  price: rupiahSchema,
 });
 
-export const updateProductSchema = createProductSchema.partial().extend({
-  isActive: z.boolean().optional(),
+export const updateProductSchema = createProductSchema
+  .extend({ isActive: z.boolean() })
+  .partial()
+  .refine((input) => Object.keys(input).length > 0, "Tidak ada perubahan");
+
+export const listProductsQuerySchema = z.object({
+  includeInactive: queryBooleanSchema.optional(),
 });
 
-export const productQuerySchema = z.object({
-  search: z.string().optional(),
-  categoryId: z.string().uuid().optional(),
-  stockStatus: z.enum(["SAFE", "LOW", "OUT"]).optional(),
-});
-
-export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
-export type ProductQueryInput = z.infer<typeof productQuerySchema>;
+export type ListProductsQuery = z.infer<typeof listProductsQuerySchema>;

@@ -11,6 +11,9 @@ Vercel
 
 Neon
 └── PostgreSQL serverless
+
+Cloudflare R2
+└── Foto absen, foto kasir, surat dokter, dan berkas MOU (upload langsung dari browser)
 ```
 
 Frontend memakai `VITE_API_URL=/api`, sehingga request API tetap satu origin:
@@ -36,8 +39,37 @@ JWT_ACCESS_SECRET=secret-minimal-32-karakter
 JWT_REFRESH_SECRET=secret-minimal-32-karakter
 CLIENT_URL=https://your-project.vercel.app
 VITE_API_URL=/api
+VITE_IDLE_TIMEOUT_MINUTES=30
 NODE_ENV=production
+SESSION_IDLE_MINUTES=45
+S3_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com
+S3_REGION=auto
+S3_BUCKET=storesync
+S3_ACCESS_KEY_ID=...
+S3_SECRET_ACCESS_KEY=...
+S3_FORCE_PATH_STYLE=false
 ```
+
+Untuk staging yang dipakai demo, tambahkan `VITE_SHOW_DEMO_ACCOUNTS=true` supaya tombol akun demo muncul di halaman login.
+
+## 2b. Siapkan bucket Cloudflare R2
+
+1. Buat bucket `storesync` di Cloudflare R2 (lokasi: Asia-Pacific).
+2. Buat API token R2 dengan izin *Object Read & Write* untuk bucket itu; isi `S3_ACCESS_KEY_ID` dan `S3_SECRET_ACCESS_KEY`.
+3. Atur CORS bucket supaya browser bisa upload langsung:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://your-project.vercel.app"],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["Content-Type"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+4. Jangan pasang lifecycle rule yang menghapus objek: foto wajib disimpan minimal 2 tahun (NFR PRD).
 
 Untuk preview deployment, `CLIENT_URL` bisa diganti ke URL preview bila ingin CORS presisi. Jika frontend memanggil `/api` di origin yang sama, CORS tidak menjadi blocker utama.
 
@@ -64,10 +96,20 @@ cd server
 DATABASE_URL="postgresql://USER:PASSWORD@HOST.REGION.aws.neon.tech/DB?sslmode=require" npx prisma migrate deploy
 ```
 
-Untuk demo/UAT, seed data bisa dijalankan:
+> **Upgrade dari v1:** migrasi v2 memakai baseline baru. Database Neon yang berisi schema v1 harus dikosongkan dulu (misalnya buat branch/database baru di Neon), lalu jalankan `migrate deploy`.
+
+Untuk demo/UAT, seed akun demo bisa dijalankan (NODE_ENV bukan `production`):
 
 ```bash
 cd server
+DATABASE_URL="postgresql://USER:PASSWORD@HOST.REGION.aws.neon.tech/DB?sslmode=require" npm run db:seed
+```
+
+Untuk environment tanpa akun demo, buat Super Admin pertama (wajib ganti sandi saat login pertama):
+
+```bash
+cd server
+NODE_ENV=production SEED_SUPER_ADMIN_NAME="Nama Super Admin" SEED_SUPER_ADMIN_PHONE="0812xxxxxxxx" SEED_SUPER_ADMIN_PASSWORD="SandiSementara1" \
 DATABASE_URL="postgresql://USER:PASSWORD@HOST.REGION.aws.neon.tech/DB?sslmode=require" npm run db:seed
 ```
 
@@ -81,18 +123,11 @@ Setelah deploy:
 GET https://your-project.vercel.app/api/health
 ```
 
-Lalu uji dari UI:
-
-- Login Pemilik.
-- Login Supervisor.
-- Login Sales.
-- Input penjualan.
-- Buat SPP.
-- Approve SPP.
-- Cek dashboard dan notifikasi.
+Lalu jalankan [Checklist UAT v2](UAT_CHECKLIST_v2.md) untuk tahap yang sedang dirilis, dari laptop dan dari HP. Halaman seperti `/profil` harus tetap terbuka saat di-reload (rewrite SPA di `vercel.json`).
 
 ## Catatan Batasan Gratis
 
 - Vercel Hobby cocok untuk demo/staging personal.
 - Neon Free cocok untuk database kecil/UAT.
-- Untuk operasional toko sungguhan, siapkan backup, monitoring, rate limit, dan strategi upgrade plan.
+- Vercel Cron di paket Hobby hanya berjalan harian; job per 10–15 menit di Tahap 9 butuh paket Pro atau cron eksternal.
+- Untuk operasional sungguhan, siapkan backup, monitoring, dan strategi upgrade plan.

@@ -2,8 +2,6 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "../lib/utils";
-import type { StockStatus } from "../types/product";
-import type { PurchaseRequestStatus } from "../types/purchase-request";
 
 export function Logo({ className, inverted = false }: { className?: string; inverted?: boolean }) {
   return (
@@ -177,23 +175,41 @@ export function DataTable({
   );
 }
 
-export function Field({ label, children }: { label: string; children: ReactNode }) {
+export function Field({
+  label,
+  children,
+  error,
+  hint,
+}: {
+  label: string;
+  children: ReactNode;
+  error?: string;
+  hint?: ReactNode;
+}) {
   return (
-    <label className="grid gap-1.5">
+    <label className="grid content-start gap-1.5">
       <span className="text-[13px] font-medium text-gray-700">{label}</span>
       {children}
+      {error ? (
+        <span role="alert" className="text-xs font-medium text-red-600">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="text-xs text-muted">{hint}</span>
+      ) : null}
     </label>
   );
 }
 
-export function Notice({ children, tone = "blue" }: { children: ReactNode; tone?: "blue" | "red" }) {
+const noticeTones = {
+  blue: "bg-brand-50 text-brand-700",
+  red: "bg-red-50 text-red-600",
+  green: "bg-green-50 text-green-700",
+};
+
+export function Notice({ children, tone = "blue" }: { children: ReactNode; tone?: keyof typeof noticeTones }) {
   return (
-    <p
-      className={cn(
-        "rounded-xl px-3.5 py-2.5 text-sm font-medium",
-        tone === "red" ? "bg-red-50 text-red-600" : "bg-brand-50 text-brand-700",
-      )}
-    >
+    <p role={tone === "red" ? "alert" : "status"} className={cn("rounded-xl px-3.5 py-2.5 text-sm font-medium", noticeTones[tone])}>
       {children}
     </p>
   );
@@ -237,42 +253,6 @@ export function Pill({ tone, children, className }: { tone: PillTone; children: 
   );
 }
 
-export function StockBadge({ status }: { status: StockStatus }) {
-  const labels: Record<StockStatus, string> = {
-    SAFE: "Aman",
-    LOW: "Rendah",
-    OUT: "Habis",
-  };
-  const tones: Record<StockStatus, PillTone> = {
-    SAFE: "green",
-    LOW: "orange",
-    OUT: "red",
-  };
-
-  return <Pill tone={tones[status]}>{labels[status]}</Pill>;
-}
-
-export function PurchaseStatusBadge({ status }: { status: PurchaseRequestStatus }) {
-  const labels: Record<PurchaseRequestStatus, string> = {
-    DRAFT: "Draft",
-    WAITING_APPROVAL: "Menunggu",
-    APPROVED: "Disetujui",
-    REJECTED: "Ditolak",
-    REVISION_REQUESTED: "Revisi",
-    COMPLETED: "Selesai",
-  };
-  const tones: Record<PurchaseRequestStatus, PillTone> = {
-    DRAFT: "gray",
-    WAITING_APPROVAL: "orange",
-    APPROVED: "green",
-    REJECTED: "red",
-    REVISION_REQUESTED: "blue",
-    COMPLETED: "dark",
-  };
-
-  return <Pill tone={tones[status]}>{labels[status]}</Pill>;
-}
-
 export function Avatar({ initials, className }: { initials: string; className?: string }) {
   return (
     <span
@@ -283,5 +263,47 @@ export function Avatar({ initials, className }: { initials: string; className?: 
     >
       {initials}
     </span>
+  );
+}
+
+export function PageHeader({
+  title,
+  description,
+  actions,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold tracking-tight text-ink sm:text-2xl">{title}</h1>
+        {description ? <p className="mt-1 text-sm text-muted">{description}</p> : null}
+      </div>
+      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
+    </div>
+  );
+}
+
+export function Spinner({ className }: { className?: string }) {
+  return (
+    <span
+      role="status"
+      aria-label="Memuat"
+      className={cn("inline-block size-5 animate-spin rounded-full border-2 border-brand-200 border-t-brand-600", className)}
+    />
+  );
+}
+
+export function LoadingScreen({ label = "Memuat..." }: { label?: string }) {
+  return (
+    <div className="grid min-h-screen place-items-center bg-canvas">
+      <div className="flex flex-col items-center gap-4">
+        <LogoMark className="size-10" />
+        <Spinner />
+        <p className="text-sm text-muted">{label}</p>
+      </div>
+    </div>
   );
 }

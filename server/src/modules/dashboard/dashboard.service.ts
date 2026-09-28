@@ -1,98 +1,57 @@
-import { PurchaseRequestStatus, UserRole } from "@prisma/client";
+import { PharmacyStatus, UserRole, UserStatus } from "@prisma/client";
+import type { AuditActor } from "../../utils/audit";
 import { prisma } from "../../utils/prisma";
+import { businessDate } from "../../utils/time";
+import { getMonitor } from "../attendance/attendance.service";
 
-const todayRange = () => {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 1);
-  return { start, end };
-};
+/** Ringkasan data utama untuk dashboard Super Admin dan Admin. Tahap berikutnya menambah omzet, absen, dsb. */
+export const getOverview = async (actor: AuditActor) => {
+  const month = businessDate().slice(0, 7);
+  const attendanceToday = (await getMonitor(undefined, actor)).summary;
+  const [usersByRole, pharmaciesByStatus, spgWithoutPlacement, spgWithoutTeam, activeProducts, activeSpg, targets] =
+    await Promise.all([
+      prisma.user.groupBy({ by: ["role"], where: { status: UserStatus.ACTIVE }, _count: { _all: true } }),
+      prisma.pharmacy.groupBy({ by: ["status"], _count: { _all: true } }),
+      prisma.user.findMany({
+        where: { role: UserRole.SPG, status: UserStatus.ACTIVE, placements: { none: { endedAt: null } } },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.user.findMany({
+        where: { role: UserRole.SPG, status: UserStatus.ACTIVE, teamId: null },
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+      prisma.product.count({ where: { isActive: true } }),
+      prisma.user.count({ where: { role: UserRole.SPG, status: UserStatus.ACTIVE } }),
+      prisma.salesTarget.aggregate({
+        where: { month, spg: { status: UserStatus.ACTIVE } },
+        _sum: { amount: true },
+        _count: { _all: true },
+      }),
+    ]);
 
-export const getDashboardSummary = async (actor: { id: string; role: UserRole }) => {
-  const { start, end } = todayRange();
+  const activeUsers = Object.fromEntries(Object.values(UserRole).map((role) => [role, 0])) as Record<UserRole, number>;
+  usersByRole.forEach((group) => (activeUsers[group.role] = group._count._all));
 
-  const [
-    todaySales,
-    monthlySales,
-    lowStockCount,
-    outStockCount,
-    waitingPurchaseRequests,
-    latestPurchaseRequests,
-    unreadNotifications,
-    mySalesToday,
-  ] = await Promise.all([
-    prisma.salesTransaction.aggregate({
-      where: { transactionAt: { gte: start, lt: end } },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prisma.salesTransaction.aggregate({
-      where: {
-        transactionAt: {
-          gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        },
-      },
-      _sum: { total: true },
-      _count: true,
-    }),
-    prisma.product.count({
-      where: {
-        isActive: true,
-        stockQuantity: { gt: 0 },
-        minimumStock: { gt: 0 },
-        AND: [{ stockQuantity: { lte: prisma.product.fields.minimumStock } }],
-      },
-    }),
-    prisma.product.count({
-      where: {
-        isActive: true,
-        stockQuantity: { lte: 0 },
-      },
-    }),
-    prisma.purchaseRequest.count({
-      where: { status: PurchaseRequestStatus.WAITING_APPROVAL },
-    }),
-    prisma.purchaseRequest.findMany({
-      where: actor.role === UserRole.SALES ? { id: "__none__" } : undefined,
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: {
-        id: true,
-        requestNo: true,
-        status: true,
-        supplier: true,
-        createdAt: true,
-      },
-    }),
-    prisma.notification.count({
-      where: {
-        userId: actor.id,
-        readAt: null,
-      },
-    }),
-    prisma.salesTransaction.aggregate({
-      where: {
-        salesId: actor.id,
-        transactionAt: { gte: start, lt: end },
-      },
-      _sum: { total: true },
-      _count: true,
-    }),
-  ]);
+  const pharmacies = Object.fromEntries(Object.values(PharmacyStatus).map((status) => [status, 0])) as Record<
+    PharmacyStatus,
+    number
+  >;
+  pharmaciesByStatus.forEach((group) => (pharmacies[group.status] = group._count._all));
 
   return {
-    role: actor.role,
-    todaySalesTotal: Number(todaySales._sum.total ?? 0),
-    todaySalesCount: todaySales._count,
-    monthlySalesTotal: Number(monthlySales._sum.total ?? 0),
-    monthlySalesCount: monthlySales._count,
-    lowStockCount,
-    outStockCount,
-    waitingPurchaseRequests,
-    unreadNotifications,
-    mySalesTodayTotal: Number(mySalesToday._sum.total ?? 0),
-    mySalesTodayCount: mySalesToday._count,
-    latestPurchaseRequests,
+    attendanceToday,
+    activeUsers,
+    pharmacies,
+    activeProducts,
+    spgWithoutPlacement,
+    spgWithoutTeam,
+    targets: {
+      month,
+      activeSpg,
+      spgWithTarget: targets._count._all,
+      totalAmount: targets._sum.amount ?? 0,
+    },
   };
 };

@@ -1,8 +1,17 @@
+import { UserRole } from "@prisma/client";
 import { Router } from "express";
 import { authenticate } from "../../middleware/authenticate";
-import * as dashboardController from "./dashboard.controller";
+import { authorize } from "../../middleware/authorize";
+import { asyncHandler } from "../../utils/async-handler";
+import { getOverview } from "./dashboard.service";
 
 export const dashboardRouter = Router();
 
-dashboardRouter.use(authenticate);
-dashboardRouter.get("/summary", dashboardController.getDashboardSummary);
+dashboardRouter.get(
+  "/overview",
+  authenticate,
+  authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN),
+  asyncHandler(async (req, res) => {
+    res.json({ overview: await getOverview(req.user!) });
+  }),
+);

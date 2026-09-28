@@ -29,6 +29,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/prisma ./prisma
+# `npm run db:seed` (tsx) mengimpor helper dari src.
+COPY --from=build /app/src ./src
+COPY --from=build /app/tsconfig.json ./tsconfig.json
 
 EXPOSE 4000
 
