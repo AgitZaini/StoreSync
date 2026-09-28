@@ -1,8 +1,9 @@
+import { auditContext } from "../../utils/audit";
 import { asyncHandler } from "../../utils/async-handler";
 import * as authService from "./auth.service";
 
 export const login = asyncHandler(async (req, res) => {
-  const result = await authService.login(req.body);
+  const result = await authService.login(req.body, auditContext(req));
   res.json(result);
 });
 
@@ -13,6 +14,11 @@ export const me = asyncHandler(async (req, res) => {
 
 export const refresh = asyncHandler(async (req, res) => {
   const result = await authService.refresh(req.body);
+  res.json(result);
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+  const result = await authService.changePassword(req.user!.id, req.body, auditContext(req));
   res.json(result);
 });
 

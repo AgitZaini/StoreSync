@@ -2,8 +2,10 @@ import { useId, useState } from "react";
 import type { PointerEvent } from "react";
 import type { LucideIcon } from "lucide-react";
 import { formatCompactNumber, formatCurrency, formatShortDate } from "../lib/format";
-import type { DailySales, WeekdayActivity } from "../lib/sales-insights";
 import { cn } from "../lib/utils";
+
+export type DailySales = { date: Date; total: number; count: number };
+export type WeekdayActivity = { label: string; count: number; total: number };
 
 /** Rounds `value` up so it splits into `steps` evenly sized, readable ticks. */
 function niceMax(value: number, steps: number) {

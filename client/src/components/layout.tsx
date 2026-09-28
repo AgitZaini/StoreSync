@@ -1,29 +1,50 @@
 import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
-import { Bell, CheckCheck, LogOut, Package, PanelLeftClose, PanelLeftOpen, Search, ShieldCheck, X } from "lucide-react";
+import {
+  Bell,
+  CheckCheck,
+  LogOut,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Search,
+  ShieldCheck,
+  UserRound,
+  X,
+} from "lucide-react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useDismiss } from "../hooks/use-dismiss";
 import { formatDateTime } from "../lib/format";
 import { cn } from "../lib/utils";
 import type { NotificationItem } from "../types/notification";
-import type { Product } from "../types/product";
 import { iconButtonClass } from "./styles";
-import { Avatar, Logo, LogoMark, StockBadge } from "./ui";
+import { Avatar, Logo } from "./ui";
 
-export type NavItem<Key extends string = string> = {
-  key: Key;
+export type NavItem = {
+  key: string;
   label: string;
+  path: string;
   icon: LucideIcon;
   group: "main" | "manage";
+  /** Menu yang modulnya belum dibangun: tampil redup dengan label "Segera". */
+  disabled?: boolean;
+  disabledHint?: string;
   badge?: number;
   badgeTone?: "green" | "orange";
 };
 
 export type StatusRow = { icon: LucideIcon; label: string; dot: string };
 
-export function Sidebar<Key extends string>({
+function SoonBadge({ className }: { className?: string }) {
+  return (
+    <span className={cn("rounded-md bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-subtle", className)}>
+      Segera
+    </span>
+  );
+}
+
+export function Sidebar({
   items,
-  activeKey,
-  onSelect,
   collapsed,
   onToggleCollapsed,
   mobileOpen,
@@ -32,9 +53,7 @@ export function Sidebar<Key extends string>({
   account,
   onLogout,
 }: {
-  items: NavItem<Key>[];
-  activeKey: Key;
-  onSelect: (key: Key) => void;
+  items: NavItem[];
   collapsed: boolean;
   onToggleCollapsed: () => void;
   mobileOpen: boolean;
@@ -47,6 +66,7 @@ export function Sidebar<Key extends string>({
     (group) => group.length > 0,
   );
   const hideWhenCollapsed = collapsed ? "lg:hidden" : "";
+  const itemClass = "relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition";
 
   return (
     <>
@@ -88,38 +108,59 @@ export function Sidebar<Key extends string>({
           {groups.map((group, groupIndex) => (
             <div key={groupIndex} className={cn("space-y-1", groupIndex > 0 && "mt-4 border-t border-line pt-4")}>
               {group.map((item) => {
-                const isActive = item.key === activeKey;
                 const Icon = item.icon;
 
+                if (item.disabled) {
+                  return (
+                    <div
+                      key={item.key}
+                      title={item.disabledHint ?? item.label}
+                      aria-disabled="true"
+                      className={cn(itemClass, "cursor-default text-gray-400", collapsed && "lg:justify-center lg:px-0")}
+                    >
+                      <Icon className="size-[18px] shrink-0" strokeWidth={1.8} />
+                      <span className={cn("flex-1 truncate text-left", hideWhenCollapsed)}>{item.label}</span>
+                      <SoonBadge className={hideWhenCollapsed} />
+                    </div>
+                  );
+                }
+
                 return (
-                  <button
+                  <NavLink
                     key={item.key}
-                    type="button"
+                    to={item.path}
+                    end={item.path === "/"}
                     title={collapsed ? item.label : undefined}
-                    onClick={() => onSelect(item.key)}
-                    className={cn(
-                      "relative flex h-10 w-full items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
-                      isActive ? "bg-brand-50 text-brand-600" : "text-gray-600 hover:bg-canvas hover:text-ink",
-                      collapsed && "lg:justify-center lg:px-0",
-                    )}
+                    onClick={onCloseMobile}
+                    className={({ isActive }) =>
+                      cn(
+                        itemClass,
+                        isActive ? "bg-brand-50 text-brand-600" : "text-gray-600 hover:bg-canvas hover:text-ink",
+                        collapsed && "lg:justify-center lg:px-0",
+                      )
+                    }
                   >
-                    {isActive ? (
-                      <span className="absolute -left-4 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-600" />
-                    ) : null}
-                    <Icon className="size-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
-                    <span className={cn("flex-1 truncate text-left", hideWhenCollapsed)}>{item.label}</span>
-                    {item.badge ? (
-                      <span
-                        className={cn(
-                          "rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none tabular-nums",
-                          item.badgeTone === "orange" ? "bg-orange-50 text-orange-600" : "bg-green-50 text-green-600",
-                          collapsed && "lg:absolute lg:right-0.5 lg:top-0.5 lg:px-1 lg:text-[10px]",
-                        )}
-                      >
-                        {item.badge}
-                      </span>
-                    ) : null}
-                  </button>
+                    {({ isActive }) => (
+                      <>
+                        {isActive ? (
+                          <span className="absolute -left-4 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-600" />
+                        ) : null}
+                        <Icon className="size-[18px] shrink-0" strokeWidth={isActive ? 2.2 : 1.8} />
+                        <span className={cn("flex-1 truncate text-left", hideWhenCollapsed)}>{item.label}</span>
+                        {item.badge ? (
+                          <span
+                            className={cn(
+                              "rounded-md px-1.5 py-0.5 text-[11px] font-semibold leading-none tabular-nums",
+                              item.badgeTone === "orange" ? "bg-orange-50 text-orange-600" : "bg-green-50 text-green-600",
+                              collapsed && "lg:absolute lg:right-0.5 lg:top-0.5 lg:px-1 lg:text-[10px]",
+                            )}
+                          >
+                            {item.badge}
+                          </span>
+                        ) : null}
+                      </>
+                    )}
+                  </NavLink>
                 );
               })}
             </div>
@@ -181,17 +222,59 @@ export function Sidebar<Key extends string>({
   );
 }
 
-export function SearchBox<Key extends string>({
-  menus,
-  products,
-  productMenuKey,
-  onNavigate,
-}: {
-  menus: NavItem<Key>[];
-  products: Product[];
-  productMenuKey: Key | null;
-  onNavigate: (key: Key) => void;
-}) {
+/** Navigasi bawah untuk layar HP; tombol terakhir membuka menu lengkap. */
+export function BottomNav({ items, onOpenMenu }: { items: NavItem[]; onOpenMenu: () => void }) {
+  const itemClass =
+    "flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl py-1.5 text-[11px] font-medium leading-none transition";
+
+  return (
+    <nav
+      aria-label="Navigasi utama"
+      className="fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden"
+    >
+      <div
+        className="mx-auto grid h-16 max-w-md gap-1 px-2"
+        style={{ gridTemplateColumns: `repeat(${items.length + 1}, minmax(0, 1fr))` }}
+      >
+        {items.map((item) => {
+          const Icon = item.icon;
+
+          if (item.disabled) {
+            return (
+              <div key={item.key} aria-disabled="true" title={item.disabledHint} className={cn(itemClass, "text-gray-300")}>
+                <Icon className="size-5" strokeWidth={1.8} />
+                <span className="w-full truncate text-center">{item.label}</span>
+              </div>
+            );
+          }
+
+          return (
+            <NavLink
+              key={item.key}
+              to={item.path}
+              end={item.path === "/"}
+              className={({ isActive }) => cn(itemClass, isActive ? "text-brand-600" : "text-gray-500 hover:text-ink")}
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon className="size-5" strokeWidth={isActive ? 2.2 : 1.8} />
+                  <span className="w-full truncate text-center">{item.label}</span>
+                </>
+              )}
+            </NavLink>
+          );
+        })}
+        <button type="button" onClick={onOpenMenu} className={cn(itemClass, "text-gray-500 hover:text-ink")}>
+          <Menu className="size-5" strokeWidth={1.8} />
+          <span>Menu</span>
+        </button>
+      </div>
+    </nav>
+  );
+}
+
+export function SearchBox({ menus }: { menus: NavItem[] }) {
+  const navigate = useNavigate();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -213,16 +296,11 @@ export function SearchBox<Key extends string>({
   }, []);
 
   const needle = query.trim().toLowerCase();
-  const menuResults = needle ? menus.filter((menu) => menu.label.toLowerCase().includes(needle)) : [];
-  const productResults = needle
-    ? products
-        .filter((product) => product.name.toLowerCase().includes(needle) || product.sku.toLowerCase().includes(needle))
-        .slice(0, 5)
-    : [];
-  const firstTarget = menuResults[0]?.key ?? (productResults.length > 0 ? productMenuKey : null);
+  const results = needle ? menus.filter((menu) => menu.label.toLowerCase().includes(needle)) : [];
+  const firstAvailable = results.find((menu) => !menu.disabled);
 
-  const choose = (key: Key) => {
-    onNavigate(key);
+  const choose = (menu: NavItem) => {
+    navigate(menu.path);
     setQuery("");
     setOpen(false);
     inputRef.current?.blur();
@@ -240,11 +318,11 @@ export function SearchBox<Key extends string>({
         }}
         onFocus={() => setOpen(true)}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && firstTarget) {
-            choose(firstTarget);
+          if (event.key === "Enter" && firstAvailable) {
+            choose(firstAvailable);
           }
         }}
-        placeholder="Cari menu atau produk..."
+        placeholder="Cari menu..."
         className="h-10 w-full rounded-full border border-line bg-white pl-10 pr-14 text-sm text-ink outline-none transition placeholder:text-subtle focus:border-brand-300 focus:ring-4 focus:ring-brand-100"
       />
       <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-line bg-canvas px-1.5 py-0.5 font-sans text-[11px] font-medium text-muted sm:block">
@@ -253,50 +331,23 @@ export function SearchBox<Key extends string>({
 
       {open && needle ? (
         <div className="absolute inset-x-0 top-12 z-40 overflow-hidden rounded-2xl border border-line bg-white p-2 shadow-pop">
-          {menuResults.length === 0 && productResults.length === 0 ? (
-            <p className="px-3 py-6 text-center text-sm text-muted">Tidak ada hasil untuk “{query.trim()}”.</p>
-          ) : null}
-          {menuResults.length > 0 ? (
-            <div>
-              <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle">Menu</p>
-              {menuResults.map((menu) => (
-                <button
-                  key={menu.key}
-                  type="button"
-                  onClick={() => choose(menu.key)}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink hover:bg-canvas"
-                >
-                  <menu.icon className="size-4 text-muted" />
-                  {menu.label}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {productResults.length > 0 ? (
-            <div>
-              <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-subtle">Produk</p>
-              {productResults.map((product) => (
-                <button
-                  key={product.id}
-                  type="button"
-                  disabled={!productMenuKey}
-                  onClick={() => productMenuKey && choose(productMenuKey)}
-                  className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left hover:bg-canvas disabled:cursor-default disabled:hover:bg-transparent"
-                >
-                  <span className="grid size-8 shrink-0 place-items-center rounded-lg border border-line bg-canvas text-muted">
-                    <Package className="size-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-ink">{product.name}</span>
-                    <span className="block text-xs text-muted">
-                      {product.sku} · stok {product.stockQuantity} {product.unit}
-                    </span>
-                  </span>
-                  <StockBadge status={product.stockStatus} />
-                </button>
-              ))}
-            </div>
-          ) : null}
+          {results.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-muted">Tidak ada menu “{query.trim()}”.</p>
+          ) : (
+            results.map((menu) => (
+              <button
+                key={menu.key}
+                type="button"
+                disabled={menu.disabled}
+                onClick={() => choose(menu)}
+                className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink hover:bg-canvas disabled:cursor-default disabled:text-gray-400 disabled:hover:bg-transparent"
+              >
+                <menu.icon className="size-4 text-muted" />
+                <span className="flex-1">{menu.label}</span>
+                {menu.disabled ? <SoonBadge /> : null}
+              </button>
+            ))
+          )}
         </div>
       ) : null}
     </div>
@@ -305,9 +356,11 @@ export function SearchBox<Key extends string>({
 
 export function NotificationMenu({
   notifications,
+  onOpenNotification,
   onMarkAllRead,
 }: {
   notifications: NotificationItem[];
+  onOpenNotification: (notification: NotificationItem) => void;
   onMarkAllRead: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -322,7 +375,7 @@ export function NotificationMenu({
         type="button"
         onClick={() => setOpen((current) => !current)}
         className={iconButtonClass}
-        aria-label="Notifikasi"
+        aria-label={unreadCount > 0 ? `Notifikasi, ${unreadCount} belum dibaca` : "Notifikasi"}
       >
         <Bell className="size-[18px]" strokeWidth={1.8} />
         {unreadCount > 0 ? (
@@ -331,7 +384,7 @@ export function NotificationMenu({
       </button>
 
       {open ? (
-        <div className="absolute right-0 top-12 z-40 w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-line bg-white shadow-pop">
+        <div className="fixed inset-x-4 top-[76px] z-40 overflow-hidden rounded-2xl border border-line bg-white shadow-pop sm:absolute sm:inset-x-auto sm:right-0 sm:top-12 sm:w-[360px]">
           <div className="flex items-center justify-between gap-3 border-b border-line px-4 py-3.5">
             <p className="text-sm font-semibold text-ink">
               Notifikasi
@@ -354,23 +407,38 @@ export function NotificationMenu({
             {notifications.length === 0 ? (
               <p className="px-4 py-10 text-center text-sm text-muted">Belum ada notifikasi.</p>
             ) : (
-              notifications.map((notification) => (
-                <div key={notification.id} className={cn("flex gap-3 px-4 py-3", !notification.readAt && "bg-brand-50/40")}>
+              notifications.slice(0, 8).map((notification) => (
+                <button
+                  key={notification.id}
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    onOpenNotification(notification);
+                  }}
+                  className={cn(
+                    "flex w-full gap-3 px-4 py-3 text-left transition hover:bg-canvas",
+                    !notification.readAt && "bg-brand-50/40",
+                  )}
+                >
                   <span
-                    className={cn(
-                      "mt-1.5 size-2 shrink-0 rounded-full",
-                      notification.readAt ? "bg-gray-200" : "bg-brand-500",
-                    )}
+                    className={cn("mt-1.5 size-2 shrink-0 rounded-full", notification.readAt ? "bg-gray-200" : "bg-brand-500")}
                   />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-ink">{notification.title}</p>
-                    <p className="mt-0.5 text-xs leading-relaxed text-muted">{notification.message}</p>
-                    <p className="mt-1 text-[11px] text-subtle">{formatDateTime(notification.createdAt)}</p>
-                  </div>
-                </div>
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-ink">{notification.title}</span>
+                    <span className="mt-0.5 block text-xs leading-relaxed text-muted">{notification.message}</span>
+                    <span className="mt-1 block text-[11px] text-subtle">{formatDateTime(notification.createdAt)}</span>
+                  </span>
+                </button>
               ))
             )}
           </div>
+          <Link
+            to="/notifikasi"
+            onClick={() => setOpen(false)}
+            className="block border-t border-line px-4 py-3 text-center text-xs font-semibold text-brand-600 hover:bg-canvas"
+          >
+            Lihat semua notifikasi
+          </Link>
         </div>
       ) : null}
     </div>
@@ -379,13 +447,13 @@ export function NotificationMenu({
 
 export function UserMenu({
   name,
-  email,
+  subtitle,
   roleLabel,
   initials,
   onLogout,
 }: {
   name: string;
-  email: string;
+  subtitle: string;
   roleLabel: string;
   initials: string;
   onLogout: () => void;
@@ -412,13 +480,20 @@ export function UserMenu({
             <Avatar initials={initials} />
             <div className="min-w-0">
               <p className="truncate text-sm font-semibold text-ink">{name}</p>
-              <p className="truncate text-xs text-muted">{email}</p>
+              <p className="truncate text-xs text-muted">{subtitle}</p>
             </div>
           </div>
-          <div className="mx-2.5 mb-2 flex items-center gap-2 rounded-xl bg-canvas px-3 py-2 text-xs text-muted">
-            <LogoMark className="size-4" />
+          <div className="mx-2.5 mb-2 rounded-xl bg-canvas px-3 py-2 text-xs text-muted">
             Masuk sebagai <span className="font-semibold text-ink">{roleLabel}</span>
           </div>
+          <Link
+            to="/profil"
+            onClick={() => setOpen(false)}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm font-medium text-ink hover:bg-canvas"
+          >
+            <UserRound className="size-4 text-muted" />
+            Profil & kata sandi
+          </Link>
           <button
             type="button"
             onClick={onLogout}
