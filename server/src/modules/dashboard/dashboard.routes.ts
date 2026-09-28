@@ -11,7 +11,7 @@ dashboardRouter.get(
   "/overview",
   authenticate,
   authorize(UserRole.SUPER_ADMIN, UserRole.ADMIN),
-  asyncHandler(async (_req, res) => {
-    res.json({ overview: await getOverview() });
+  asyncHandler(async (req, res) => {
+    res.json({ overview: await getOverview(req.user!) });
   }),
 );

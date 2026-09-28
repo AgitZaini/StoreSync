@@ -13,3 +13,7 @@ export const updateLeaveQuota = asyncHandler(async (req, res) => {
 export const addDeductionRate = asyncHandler(async (req, res) => {
   res.status(201).json({ settings: await settingsService.addDeductionRate(req.body, req.user!, auditContext(req)) });
 });
+
+export const updateAttendanceSettings = asyncHandler(async (req, res) => {
+  res.json({ settings: await settingsService.updateAttendanceSettings(req.body, req.user!, auditContext(req)) });
+});

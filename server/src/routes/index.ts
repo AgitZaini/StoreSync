@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { healthRouter } from "./health.routes";
+import { attendanceRouter } from "../modules/attendance/attendance.routes";
 import { auditLogsRouter } from "../modules/audit-logs/audit-logs.routes";
 import { authRouter } from "../modules/auth/auth.routes";
 import { dashboardRouter } from "../modules/dashboard/dashboard.routes";
@@ -8,6 +9,7 @@ import { notificationsRouter } from "../modules/notifications/notifications.rout
 import { pharmaciesRouter } from "../modules/pharmacies/pharmacies.routes";
 import { placementsRouter } from "../modules/placements/placements.routes";
 import { productsRouter } from "../modules/products/products.routes";
+import { schedulesRouter } from "../modules/schedules/schedules.routes";
 import { settingsRouter } from "../modules/settings/settings.routes";
 import { targetsRouter } from "../modules/targets/targets.routes";
 import { teamsRouter } from "../modules/teams/teams.routes";
@@ -24,6 +26,8 @@ apiRouter.use("/pharmacies", pharmaciesRouter);
 apiRouter.use("/placements", placementsRouter);
 apiRouter.use("/products", productsRouter);
 apiRouter.use("/targets", targetsRouter);
+apiRouter.use("/schedules", schedulesRouter);
+apiRouter.use("/attendance", attendanceRouter);
 apiRouter.use("/settings", settingsRouter);
 apiRouter.use("/audit-logs", auditLogsRouter);
 apiRouter.use("/files", filesRouter);

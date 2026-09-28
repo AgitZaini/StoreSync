@@ -8,11 +8,16 @@ import { ProfilePage } from "../features/profile/profile-page";
 import { RedirectIfAuthenticated, RequireAuth, RequireRole } from "../routes/guards";
 import { NotFoundPage } from "../routes/not-found-page";
 import {
+  AttendanceMonitorPage,
+  AttendancePage,
   AuditLogPage,
+  MySchedulePage,
   PharmaciesPage,
   PharmacyFormPage,
   ProductsPage,
+  ScheduleWeekPage,
   SettingsPage,
+  TeamPage,
   UserDetailPage,
   UsersPage,
 } from "./lazy-pages";
@@ -44,6 +49,25 @@ export const router = createBrowserRouter([
               { path: "/pengaturan", element: <SettingsPage /> },
               { path: "/riwayat", element: <AuditLogPage /> },
             ],
+          },
+          {
+            element: <RequireRole roles={["SPG"]} />,
+            children: [
+              { path: "/absen", element: <AttendancePage /> },
+              { path: "/jadwal-saya", element: <MySchedulePage /> },
+            ],
+          },
+          {
+            element: <RequireRole roles={["ADMIN"]} />,
+            children: [{ path: "/jadwal", element: <ScheduleWeekPage /> }],
+          },
+          {
+            element: <RequireRole roles={["ADMIN", "SUPER_ADMIN"]} />,
+            children: [{ path: "/pemantauan-absen", element: <AttendanceMonitorPage /> }],
+          },
+          {
+            element: <RequireRole roles={["TEAM_LEADER"]} />,
+            children: [{ path: "/tim", element: <TeamPage /> }],
           },
           { path: "*", element: <NotFoundPage /> },
         ],

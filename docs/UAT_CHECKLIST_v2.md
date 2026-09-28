@@ -93,3 +93,43 @@ Login sebagai Super Admin kecuali disebutkan lain.
 ### Riwayat (LOG-01)
 
 - [ ] Menu Riwayat menampilkan semua perubahan di atas beserta pelaku, waktu (WIB), dan nilai sebelum → sesudah; bisa difilter per jenis data dan tanggal.
+
+## Tahap 3 — Jadwal & absen SPG
+
+Uji absen dari HP sungguhan lewat HTTPS (staging), di dalam dan di luar apotek demo. Kamera dan GPS butuh izin browser.
+
+### Jadwal (JDW-01, JDW-02)
+
+- [ ] Admin: menu Jadwal Mingguan menampilkan setiap pasangan SPG–apotek untuk minggu berjalan (Senin–Minggu).
+- [ ] Klik sel → isi jam masuk/pulang, tandai libur, atau kosongkan; "Terapkan juga ke" mengisi beberapa hari sekaligus.
+- [ ] Hari saat SPG tidak ditempatkan di apotek itu tidak bisa diisi (sel "—").
+- [ ] "Salin minggu lalu" hanya mengisi sel yang masih kosong; "Batalkan" membuang perubahan; "Simpan" menyimpan dan SPG menerima notifikasi "Jadwal diperbarui".
+- [ ] Pindah minggu/filter dengan perubahan belum disimpan memunculkan peringatan.
+- [ ] SPG: menu Jadwal menampilkan jadwal minggu ini dan minggu depan. Team Leader: menu Tim Saya menampilkan jadwal tim.
+- [ ] Setiap perubahan jadwal tercatat di Riwayat.
+
+### Absen SPG (ABS-01, AB-01…AB-03)
+
+- [ ] Menu Absen menampilkan hanya apotek tugas, jadwal hari ini, akurasi GPS, dan jarak ke apotek.
+- [ ] Tombol absen membuka kamera depan langsung (tidak ada pilihan galeri); wajah harus satu, cukup dekat, dan berkedip sebelum foto diambil otomatis.
+- [ ] Foto tersimpan dengan cap nama, jenis absen, apotek, dan jam WIB.
+- [ ] Absen di dalam radius tercatat dengan jam server; di luar radius ditolak dengan jarak ditampilkan.
+- [ ] GPS kurang akurat dari batas di Pengaturan ditolak dengan pesan jelas.
+- [ ] Absen pulang hanya setelah absen masuk; absen masuk kedua di hari yang sama ditolak; masuk di apotek lain sebelum pulang ditolak.
+- [ ] Bila verifikasi wajah tidak bisa berjalan (atau tidak berkedip 30 detik), foto tetap bisa diambil lalu diajukan sebagai pengecualian.
+- [ ] Izin kamera/lokasi ditolak menampilkan cara mengizinkannya.
+
+### Pengecualian absen
+
+- [ ] SPG yang ditolak (di luar radius/GPS/wajah) bisa mengajukan pengecualian dengan alasan; Admin menerima notifikasi.
+- [ ] Admin: tab Pengecualian menampilkan foto, jarak, akurasi, alasan, dan tautan peta; Setujui mencatat absen dengan jam saat SPG mencoba; Tolak wajib beralasan.
+- [ ] SPG menerima notifikasi hasilnya; setelah ditolak SPG bisa absen lagi.
+
+### Pemantauan (ABS-04)
+
+- [ ] Admin: Pemantauan Absen menampilkan ringkasan (terjadwal, tepat waktu, telat, belum absen, tidak masuk, libur, tanpa jadwal) dan status per SPG untuk tanggal terpilih.
+- [ ] Telat menampilkan selisih menit; toleransi telat di Pengaturan hanya mengubah label, jam absen tidak berubah.
+- [ ] Detail baris menampilkan foto masuk/pulang, jarak, akurasi, dan tautan peta; Admin bisa menambah catatan alasan (tanpa potongan otomatis).
+- [ ] Super Admin bisa melihat Pemantauan (lewat Beranda) tetapi tidak bisa menulis catatan atau menyetujui pengecualian.
+- [ ] Team Leader hanya melihat absen dan foto SPG timnya.
+- [ ] Beranda: Admin/Super Admin/Team Leader melihat kartu "Absen hari ini"; SPG melihat kartu "Hari ini" dengan tombol Buka absen.

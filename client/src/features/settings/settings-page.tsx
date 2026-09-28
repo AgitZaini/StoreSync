@@ -1,4 +1,4 @@
-import { CalendarDays, Wallet } from "lucide-react";
+import { CalendarDays, MapPin, Wallet } from "lucide-react";
 import { useState } from "react";
 import { RupiahInput, TextInput } from "../../components/form-controls";
 import { buttonStyles } from "../../components/styles";
@@ -7,7 +7,7 @@ import { Card, DataTable, Field, Notice, PageHeader, Spinner } from "../../compo
 import { getErrorMessage } from "../../lib/api";
 import { formatCurrency, formatDateTime } from "../../lib/format";
 import type { Settings } from "../../types/master-data";
-import { useAddDeductionRate, useSettings, useUpdateLeaveQuota } from "./settings-api";
+import { useAddDeductionRate, useSettings, useUpdateAttendanceSettings, useUpdateLeaveQuota } from "./settings-api";
 
 function LeaveQuotaCard({ settings }: { settings: Settings }) {
   const updateLeaveQuota = useUpdateLeaveQuota();
@@ -120,19 +120,66 @@ function DeductionRateCard({ settings }: { settings: Settings }) {
   );
 }
 
+function AttendanceSettingsCard({ settings }: { settings: Settings }) {
+  const updateAttendance = useUpdateAttendanceSettings();
+  const showToast = useToast();
+  const [maxAccuracy, setMaxAccuracy] = useState(String(settings.attendance.maxAccuracyM));
+  const [tolerance, setTolerance] = useState(String(settings.attendance.lateToleranceMinutes));
+  const accuracy = Number(maxAccuracy);
+  const lateTolerance = Number(tolerance);
+  const valid =
+    Number.isInteger(accuracy) && accuracy >= 10 && accuracy <= 1000 && Number.isInteger(lateTolerance) && lateTolerance >= 0 && lateTolerance <= 120;
+  const changed = accuracy !== settings.attendance.maxAccuracyM || lateTolerance !== settings.attendance.lateToleranceMinutes;
+
+  return (
+    <Card title="Absen" action={<MapPin className="size-[18px] text-brand-500" />}>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Batas akurasi GPS (m)" hint="Absen ditolak bila akurasi GPS lebih buruk dari ini.">
+          <TextInput type="number" inputMode="numeric" min={10} max={1000} value={maxAccuracy} onChange={(event) => setMaxAccuracy(event.target.value)} />
+        </Field>
+        <Field label="Toleransi telat (menit)" hint="Hanya mengubah label di pemantauan; jam absen tetap tercatat apa adanya.">
+          <TextInput type="number" inputMode="numeric" min={0} max={120} value={tolerance} onChange={(event) => setTolerance(event.target.value)} />
+        </Field>
+      </div>
+      <p className="mt-3 text-xs text-muted">Radius absen diatur per apotek di menu Apotek (bawaan 20 m).</p>
+      <button
+        type="button"
+        disabled={!valid || !changed || updateAttendance.isPending}
+        onClick={() =>
+          updateAttendance.mutate(
+            { maxAccuracyM: accuracy, lateToleranceMinutes: lateTolerance },
+            { onSuccess: () => showToast("Pengaturan absen disimpan") },
+          )
+        }
+        className={`${buttonStyles.primary} mt-4`}
+      >
+        {updateAttendance.isPending ? "Menyimpan..." : "Simpan"}
+      </button>
+      {updateAttendance.error ? (
+        <div className="mt-3">
+          <Notice tone="red">{getErrorMessage(updateAttendance.error)}</Notice>
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
 export function SettingsPage() {
   const settings = useSettings();
 
   return (
     <>
-      <PageHeader title="Pengaturan" description="Jatah cuti dan potongan per hari untuk Team Leader." />
+      <PageHeader title="Pengaturan" description="Aturan absen, jatah cuti, dan potongan per hari untuk Team Leader." />
       {settings.isPending ? (
         <div className="grid place-items-center py-20">
           <Spinner />
         </div>
       ) : settings.data ? (
         <div className="grid items-start gap-5 lg:grid-cols-2">
-          <LeaveQuotaCard key={`quota-${settings.data.leaveQuotaDays}`} settings={settings.data} />
+          <div className="space-y-5">
+            <AttendanceSettingsCard settings={settings.data} />
+            <LeaveQuotaCard key={`quota-${settings.data.leaveQuotaDays}`} settings={settings.data} />
+          </div>
           <DeductionRateCard settings={settings.data} />
         </div>
       ) : (

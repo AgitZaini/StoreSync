@@ -12,7 +12,7 @@ Dokumen acuan:
 
 - [x] Tahap 1 — Fondasi v2: login nomor HP, 5 peran, wajib ganti sandi pertama, sesi idle, riwayat (audit log) append-only, upload berkas ke R2/MinIO, tampilan responsive
 - [x] Tahap 2 — Akun & data utama: pengguna, tim, apotek + akun kasir otomatis (peta & radius), penempatan SPG maks. 3 apotek, produk, target omzet, pengaturan cuti/potongan, riwayat, batas akses per peran
-- [ ] Tahap 3 — Jadwal & absen SPG
+- [x] Tahap 3 — Jadwal & absen SPG: jadwal mingguan oleh Admin, absen foto langsung + deteksi wajah/kedip + radius GPS, pemantauan telat/tidak masuk, pengecualian absen disetujui Admin
 - [ ] Tahap 4 — Kunjungan Team Leader & lokasi live
 - [ ] Tahap 5 — Stok gudang & order
 - [ ] Tahap 6 — Laporan penjualan, persetujuan kasir & retur
@@ -25,7 +25,7 @@ Dokumen acuan:
 
 | Layer | Teknologi |
 | --- | --- |
-| Frontend | React 19 + Vite + TypeScript, Tailwind CSS 4, React Router, TanStack Query, React Hook Form + Zod, Leaflet + OpenStreetMap |
+| Frontend | React 19 + Vite + TypeScript, Tailwind CSS 4, React Router, TanStack Query, React Hook Form + Zod, Leaflet + OpenStreetMap, MediaPipe Face Landmarker (di-host sendiri) |
 | Backend | Node.js + Express 5 + TypeScript, Zod |
 | Database | PostgreSQL + Prisma |
 | Auth | JWT access token (15 menit) + refresh token berotasi |
@@ -75,7 +75,7 @@ Semua akun memakai kata sandi `Password123!`.
 | Super Admin | `0812-0000-0001` | |
 | Admin | `0812-0000-0002` | |
 | Team Leader | `0812-0000-0003` | Memimpin "Tim Demo Jakarta" |
-| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga |
+| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan |
 | SPG baru | `0812-0000-0006` | Wajib ganti sandi; belum ditempatkan |
 | Kasir Apotek | `0812-0000-0005` | Kasir Apotek Demo Sehat |
 | Kasir Apotek | `0812-0000-0011` | Kasir Apotek Demo Keluarga |
@@ -144,10 +144,24 @@ POST  /api/settings/deduction-rates  Super Admin — { amountPerDay }, berlaku m
 GET   /api/audit-logs                Super Admin — filter entity, entityId, actorId, action, from, to; cursor
 GET   /api/dashboard/overview        Super Admin, Admin
 
+# Jadwal & absen (Tahap 3)
+GET   /api/schedules?weekStart=YYYY-MM-DD      Super Admin, Admin, Team Leader, SPG — minggu mulai Senin
+PUT   /api/schedules/week/:weekStart           Admin — { entries: [{ spgId, pharmacyId, date, value | null }] }
+POST  /api/attendance                          SPG — { pharmacyId, kind, photoFileId, latitude, longitude, accuracyM, faceCheck }
+GET   /api/attendance/today                    SPG — status absen di setiap apotek tugas hari ini
+GET   /api/attendance?from=&to=&spgId=         Super Admin, Admin, Team Leader, SPG — riwayat
+GET   /api/attendance/monitor?date=            Super Admin, Admin, Team Leader — jadwal vs absen
+PUT   /api/attendance/notes                    Admin — catatan telat/tidak masuk
+POST  /api/attendance/exceptions               SPG — pengecualian saat GPS/verifikasi wajah gagal
+GET   /api/attendance/exceptions?status=       Super Admin, Admin, Team Leader, SPG
+POST  /api/attendance/exceptions/:id/approve   Admin — absen dicatat dengan jam saat SPG mencoba
+POST  /api/attendance/exceptions/:id/reject    Admin — { note }
+PUT   /api/settings/attendance                 Super Admin — { maxAccuracyM, lateToleranceMinutes }
+
 # Berkas & notifikasi (Tahap 1)
 POST  /api/files/presign             { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
 POST  /api/files/:id/complete        verifikasi berkas sudah terunggah
-GET   /api/files/:id                 URL unduh sementara (pengunggah, Admin, Super Admin)
+GET   /api/files/:id                 URL unduh sementara (pengunggah, Admin, Super Admin, Team Leader untuk timnya)
 GET   /api/notifications
 POST  /api/notifications/read-all
 POST  /api/notifications/:id/read
@@ -162,6 +176,7 @@ Selama `mustChangePassword` aktif, semua endpoint kecuali `/auth/me`, `/auth/cha
 - Query list/get memakai batas akses dari `scopeFor(actor)` (`server/src/utils/scope.ts`).
 - Tanggal bisnis memakai WIB (`server/src/utils/time.ts`). Client juga menampilkan jam dalam WIB.
 - Halaman client ada di `client/src/features/<modul>/`, menu per peran di `client/src/routes/navigation.ts`.
+- Absen (`Attendance`) juga append-only di database. Absen web memakai kamera langsung + deteksi wajah/kedip MediaPipe; model `client/src/assets/models/face_landmarker.task` dan WASM-nya di-host sendiri (±7 MB setelah kompresi, diunduh sekali lalu di-cache). Deteksi lokasi palsu dan tracking latar belakang menyusul di aplikasi mobile (Tahap 10).
 
 ## Deployment
 

@@ -99,3 +99,41 @@ export function shiftMonth(month: string, delta: number) {
   const date = new Date(Date.UTC(year, monthIndex - 1 + delta, 1));
   return date.toISOString().slice(0, 7);
 }
+
+/** Jam "HH.mm" WIB dari waktu ISO. */
+export function formatTime(value: string | Date) {
+  return new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", timeZone: APP_TIME_ZONE }).format(
+    new Date(value),
+  );
+}
+
+/** Tanggal bisnis "YYYY-MM-DD" → "Sen, 28 Sep". */
+export function formatBusinessDate(date: string, options: Intl.DateTimeFormatOptions = { weekday: "short", day: "numeric", month: "short" }) {
+  return new Intl.DateTimeFormat("id-ID", { ...options, timeZone: APP_TIME_ZONE }).format(new Date(`${date}T12:00:00+07:00`));
+}
+
+/** Tanggal bisnis hari ini (WIB), "YYYY-MM-DD". */
+export function todayDate(now = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { year: "numeric", month: "2-digit", day: "2-digit", timeZone: APP_TIME_ZONE }).format(now);
+}
+
+export function shiftDate(date: string, days: number) {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
+/** Senin pada minggu yang memuat `date`. */
+export function mondayOf(date: string) {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return shiftDate(date, -((weekday + 6) % 7));
+}
+
+export function formatScheduleValue(value: { isOff: boolean; startTime: string | null; endTime: string | null } | null) {
+  if (!value) return "-";
+  return value.isOff ? "Libur" : `${value.startTime}–${value.endTime}`;
+}
+
+export function formatDistance(meters: number) {
+  return meters >= 1000 ? `${(meters / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km` : `${Math.round(meters)} m`;
+}

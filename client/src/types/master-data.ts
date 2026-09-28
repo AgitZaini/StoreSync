@@ -1,3 +1,4 @@
+import type { MonitorSummary } from "./attendance";
 import type { UserRole, UserStatus } from "./auth";
 
 export type PharmacyStatus = "PROSPECT" | "ACTIVE" | "INACTIVE";
@@ -109,6 +110,7 @@ export type DeductionRate = {
 
 export type Settings = {
   leaveQuotaDays: number;
+  attendance: { maxAccuracyM: number; lateToleranceMinutes: number };
   deductionRate: DeductionRate | null;
   deductionRates: DeductionRate[];
 };
@@ -129,6 +131,7 @@ export type AuditEntry = {
 export type AuditLogPage = { entries: AuditEntry[]; nextCursor: string | null };
 
 export type Overview = {
+  attendanceToday: MonitorSummary;
   activeUsers: Record<UserRole, number>;
   pharmacies: Record<PharmacyStatus, number>;
   activeProducts: number;

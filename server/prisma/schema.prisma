@@ -37,6 +37,22 @@ enum FileStatus {
   UPLOADED
 }
 
+enum AttendanceKind {
+  CHECK_IN
+  CHECK_OUT
+}
+
+enum AttendanceSource {
+  WEB
+  APP
+}
+
+enum AttendanceExceptionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum PharmacyStatus {
   /// Calon mitra dari MOU (Tahap 8); belum punya akun kasir.
   PROSPECT
@@ -60,14 +76,17 @@ model User {
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 
-  refreshTokens RefreshToken[]
-  notifications Notification[]
-  files         FileObject[]
-  team          Team?          @relation("TeamMembers", fields: [teamId], references: [id])
-  ledTeam       Team?          @relation("TeamLeader")
-  kasirPharmacy Pharmacy?      @relation("PharmacyKasir")
-  placements    Placement[]
-  salesTargets  SalesTarget[]
+  refreshTokens        RefreshToken[]
+  notifications        Notification[]
+  files                FileObject[]
+  team                 Team?                 @relation("TeamMembers", fields: [teamId], references: [id])
+  ledTeam              Team?                 @relation("TeamLeader")
+  kasirPharmacy        Pharmacy?             @relation("PharmacyKasir")
+  placements           Placement[]
+  salesTargets         SalesTarget[]
+  schedules            Schedule[]
+  attendances          Attendance[]
+  attendanceExceptions AttendanceException[]
 
   @@index([role, status])
   @@index([teamId])
@@ -133,7 +152,9 @@ model FileObject {
   createdAt    DateTime    @default(now())
   uploadedAt   DateTime?
 
-  uploadedBy User @relation(fields: [uploadedById], references: [id])
+  uploadedBy          User                 @relation(fields: [uploadedById], references: [id])
+  attendance          Attendance?
+  attendanceException AttendanceException?
 
   @@index([uploadedById, createdAt])
 }
@@ -174,8 +195,11 @@ model Pharmacy {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
-  kasir      User?       @relation("PharmacyKasir", fields: [kasirUserId], references: [id])
-  placements Placement[]
+  kasir                User?                 @relation("PharmacyKasir", fields: [kasirUserId], references: [id])
+  placements           Placement[]
+  schedules            Schedule[]
+  attendances          Attendance[]
+  attendanceExceptions AttendanceException[]
 
   @@index([status])
 }
@@ -234,4 +258,102 @@ model DeductionRate {
   createdAt     DateTime @default(now())
 
   @@index([effectiveFrom])
+}
+
+/// Jadwal SPG per apotek per hari (JDW-01), diisi Admin.
+model Schedule {
+  id         String   @id @default(uuid())
+  spgId      String
+  pharmacyId String
+  /// Tanggal bisnis WIB, format YYYY-MM-DD.
+  date       String
+  /// Jam masuk/pulang "HH:mm" WIB; kosong bila libur.
+  startTime  String?
+  endTime    String?
+  isOff      Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  spg      User     @relation(fields: [spgId], references: [id])
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+
+  @@unique([spgId, pharmacyId, date])
+  @@index([date])
+}
+
+/// Absen masuk/pulang (ABS-01). Tidak pernah diubah atau dihapus.
+model Attendance {
+  id           String           @id @default(uuid())
+  userId       String
+  pharmacyId   String
+  kind         AttendanceKind
+  /// Tanggal bisnis WIB (YYYY-MM-DD) dari jam server.
+  businessDate String
+  /// Jam server saat absen (bukan jam HP).
+  serverAt     DateTime
+  photoFileId  String           @unique
+  latitude     Float
+  longitude    Float
+  accuracyM    Float
+  distanceM    Float
+  /// Hasil verifikasi wajah di perangkat (mis. deteksi kedip).
+  faceCheck    Json?
+  source       AttendanceSource @default(WEB)
+  userAgent    String?
+  /// Terisi bila absen berasal dari pengecualian yang disetujui Admin.
+  exceptionId  String?          @unique
+  createdAt    DateTime         @default(now())
+
+  user      User                 @relation(fields: [userId], references: [id])
+  pharmacy  Pharmacy             @relation(fields: [pharmacyId], references: [id])
+  photo     FileObject           @relation(fields: [photoFileId], references: [id])
+  exception AttendanceException? @relation(fields: [exceptionId], references: [id])
+
+  @@index([userId, businessDate])
+  @@index([pharmacyId, businessDate])
+}
+
+/// Pengajuan absen saat lokasi/akurasi GPS gagal di dalam gedung; Admin menyetujui atau menolak.
+model AttendanceException {
+  id           String                    @id @default(uuid())
+  userId       String
+  pharmacyId   String
+  kind         AttendanceKind
+  businessDate String
+  /// Jam server saat SPG mencoba absen; dipakai sebagai jam absen bila disetujui.
+  requestedAt  DateTime
+  photoFileId  String                    @unique
+  latitude     Float
+  longitude    Float
+  accuracyM    Float
+  distanceM    Float
+  faceCheck    Json?
+  reason       String
+  status       AttendanceExceptionStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  reviewNote   String?
+  createdAt    DateTime                  @default(now())
+
+  user       User        @relation(fields: [userId], references: [id])
+  pharmacy   Pharmacy    @relation(fields: [pharmacyId], references: [id])
+  photo      FileObject  @relation(fields: [photoFileId], references: [id])
+  attendance Attendance?
+
+  @@index([status, createdAt])
+  @@index([userId, businessDate])
+}
+
+/// Catatan Admin untuk SPG yang telat atau tidak masuk (ABS-04). Tidak ada potongan otomatis.
+model AttendanceNote {
+  id          String   @id @default(uuid())
+  spgId       String
+  pharmacyId  String
+  date        String
+  note        String
+  updatedById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([spgId, pharmacyId, date])
 }

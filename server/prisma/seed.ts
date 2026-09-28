@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PharmacyStatus, PrismaClient, UserRole, UserStatus } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
 import { normalizePhone } from "../src/utils/phone";
-import { businessDate } from "../src/utils/time";
+import { addBusinessDays, businessDate, mondayOf, weekDates } from "../src/utils/time";
 
 const prisma = new PrismaClient();
 
@@ -152,6 +152,35 @@ async function seedDemoMasterData(users: Map<string, { id: string }>) {
     });
   }
   console.log(`  Target      ${month}`);
+
+  // Jadwal minggu ini dan minggu depan: Sehat di Sen/Rab/Jum, Keluarga di Sel/Kam/Sab, Minggu libur.
+  const [sehat, keluarga] = pharmacies;
+  const thisWeek = mondayOf(businessDate());
+  for (const weekStart of [thisWeek, addBusinessDays(thisWeek, 7)]) {
+    const dates = weekDates(weekStart);
+    const plan = [
+      { date: dates[0], pharmacyId: sehat.id, startTime: "08:00", endTime: "16:00" },
+      { date: dates[1], pharmacyId: keluarga.id, startTime: "09:00", endTime: "17:00" },
+      { date: dates[2], pharmacyId: sehat.id, startTime: "08:00", endTime: "16:00" },
+      { date: dates[3], pharmacyId: keluarga.id, startTime: "09:00", endTime: "17:00" },
+      { date: dates[4], pharmacyId: sehat.id, startTime: "08:00", endTime: "16:00" },
+      { date: dates[5], pharmacyId: keluarga.id, startTime: "09:00", endTime: "15:00" },
+    ];
+    for (const entry of plan) {
+      const value = { startTime: entry.startTime, endTime: entry.endTime, isOff: false };
+      await prisma.schedule.upsert({
+        where: { spgId_pharmacyId_date: { spgId: spg.id, pharmacyId: entry.pharmacyId, date: entry.date } },
+        update: value,
+        create: { spgId: spg.id, pharmacyId: entry.pharmacyId, date: entry.date, ...value },
+      });
+    }
+    await prisma.schedule.upsert({
+      where: { spgId_pharmacyId_date: { spgId: spg.id, pharmacyId: sehat.id, date: dates[6] } },
+      update: { isOff: true, startTime: null, endTime: null },
+      create: { spgId: spg.id, pharmacyId: sehat.id, date: dates[6], isOff: true },
+    });
+  }
+  console.log(`  Jadwal      SPG Demo, minggu ${thisWeek} dan berikutnya`);
 }
 
 async function main() {

@@ -8,6 +8,8 @@ export class AppError extends Error {
     message: string,
     /** Kode mesin untuk client, misalnya PASSWORD_CHANGE_REQUIRED. */
     public readonly code?: string,
+    /** Data tambahan untuk client, misalnya jarak saat absen ditolak. */
+    public readonly details?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -28,6 +30,7 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
       status: "error",
       message: error.message,
       code: error.code,
+      details: error.details,
     });
     return;
   }

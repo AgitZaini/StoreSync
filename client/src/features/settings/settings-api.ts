@@ -29,3 +29,13 @@ export function useAddDeductionRate() {
     onSuccess: (settings) => queryClient.setQueryData(settingsKey, settings),
   });
 }
+
+export function useUpdateAttendanceSettings() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: Settings["attendance"]) =>
+      (await api.put<{ settings: Settings }>("/settings/attendance", input)).data.settings,
+    onSuccess: (settings) => queryClient.setQueryData(settingsKey, settings),
+  });
+}

@@ -49,3 +49,28 @@ export const setTeam = (token: string, userId: string, teamId: string | null) =>
 
 export const place = (token: string, spgId: string, pharmacyId: string) =>
   request(app).post("/api/placements").set(authHeader(token)).send({ spgId, pharmacyId });
+
+/** Foto absen yang sudah "terunggah" milik `userId` (tanpa menyentuh penyimpanan). */
+export const createAttendancePhoto = async (userId: string) =>
+  prisma.fileObject.create({
+    data: {
+      key: `attendance_photo/test/${Date.now()}-${nextSequence()}.jpg`,
+      purpose: "ATTENDANCE_PHOTO",
+      mimeType: "image/jpeg",
+      size: 150_000,
+      status: "UPLOADED",
+      uploadedAt: new Date(),
+      uploadedById: userId,
+    },
+  });
+
+/** Titik yang digeser ke utara sejauh kira-kira `meters` dari titik asal. */
+export const offsetNorth = (point: { latitude: number; longitude: number }, meters: number) => ({
+  latitude: point.latitude + meters / 111_195,
+  longitude: point.longitude,
+});
+
+export const PASSED_FACE_CHECK = { passed: true, method: "mediapipe-blink-v1", faces: 1, blinkDetected: true, durationMs: 2400 };
+
+/** Memundurkan awal penempatan (test yang memakai tanggal sebelum hari ini). */
+export const backdatePlacements = (startedAt: Date) => prisma.placement.updateMany({ data: { startedAt } });
