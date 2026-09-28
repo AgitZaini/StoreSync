@@ -5,6 +5,7 @@ import { auditLogsRouter } from "../modules/audit-logs/audit-logs.routes";
 import { authRouter } from "../modules/auth/auth.routes";
 import { dashboardRouter } from "../modules/dashboard/dashboard.routes";
 import { filesRouter } from "../modules/files/files.routes";
+import { locationsRouter } from "../modules/locations/locations.routes";
 import { notificationsRouter } from "../modules/notifications/notifications.routes";
 import { pharmaciesRouter } from "../modules/pharmacies/pharmacies.routes";
 import { placementsRouter } from "../modules/placements/placements.routes";
@@ -14,6 +15,8 @@ import { settingsRouter } from "../modules/settings/settings.routes";
 import { targetsRouter } from "../modules/targets/targets.routes";
 import { teamsRouter } from "../modules/teams/teams.routes";
 import { usersRouter } from "../modules/users/users.routes";
+import { visitPlansRouter } from "../modules/visit-plans/visit-plans.routes";
+import { visitsRouter } from "../modules/visits/visits.routes";
 
 export const apiRouter = Router();
 
@@ -28,6 +31,9 @@ apiRouter.use("/products", productsRouter);
 apiRouter.use("/targets", targetsRouter);
 apiRouter.use("/schedules", schedulesRouter);
 apiRouter.use("/attendance", attendanceRouter);
+apiRouter.use("/visits", visitsRouter);
+apiRouter.use("/visit-plans", visitPlansRouter);
+apiRouter.use("/locations", locationsRouter);
 apiRouter.use("/settings", settingsRouter);
 apiRouter.use("/audit-logs", auditLogsRouter);
 apiRouter.use("/files", filesRouter);

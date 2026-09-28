@@ -43,6 +43,15 @@ export const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
     return;
   }
 
+  // Body JSON rusak atau terlalu besar (ditolak express.json sebelum sampai ke route).
+  if (typeof error?.type === "string" && typeof error?.status === "number" && error.status >= 400 && error.status < 500) {
+    res.status(error.status).json({
+      status: "error",
+      message: error.status === 413 ? "Data yang dikirim terlalu besar" : "Format data tidak valid",
+    });
+    return;
+  }
+
   console.error(error);
 
   res.status(500).json({

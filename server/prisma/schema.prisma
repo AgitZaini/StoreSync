@@ -87,6 +87,10 @@ model User {
   schedules            Schedule[]
   attendances          Attendance[]
   attendanceExceptions AttendanceException[]
+  leaderVisits         LeaderVisit[]
+  leaderWorkDays       LeaderWorkDay[]
+  locationPings        LocationPing[]
+  visitPlans           VisitPlan[]
 
   @@index([role, status])
   @@index([teamId])
@@ -155,6 +159,7 @@ model FileObject {
   uploadedBy          User                 @relation(fields: [uploadedById], references: [id])
   attendance          Attendance?
   attendanceException AttendanceException?
+  visitPlanItem       VisitPlanItem?
 
   @@index([uploadedById, createdAt])
 }
@@ -200,6 +205,8 @@ model Pharmacy {
   schedules            Schedule[]
   attendances          Attendance[]
   attendanceExceptions AttendanceException[]
+  leaderVisits         LeaderVisit[]
+  visitPlanItems       VisitPlanItem[]
 
   @@index([status])
 }
@@ -308,6 +315,8 @@ model Attendance {
   pharmacy  Pharmacy             @relation(fields: [pharmacyId], references: [id])
   photo     FileObject           @relation(fields: [photoFileId], references: [id])
   exception AttendanceException? @relation(fields: [exceptionId], references: [id])
+  visitIn   LeaderVisit?         @relation("VisitCheckIn")
+  visitOut  LeaderVisit?         @relation("VisitCheckOut")
 
   @@index([userId, businessDate])
   @@index([pharmacyId, businessDate])
@@ -356,4 +365,104 @@ model AttendanceNote {
   updatedAt   DateTime @updatedAt
 
   @@unique([spgId, pharmacyId, date])
+}
+
+/// Kunjungan Team Leader di satu apotek (ABS-02): pasangan absen masuk dan keluar.
+/// Absennya sendiri tetap di `Attendance` (append-only); baris ini hanya menautkan dan menghitung durasi.
+model LeaderVisit {
+  id           String    @id @default(uuid())
+  leaderId     String
+  pharmacyId   String
+  /// Tanggal bisnis WIB saat absen masuk.
+  businessDate String
+  checkInId    String    @unique
+  checkOutId   String?   @unique
+  checkInAt    DateTime
+  checkOutAt   DateTime?
+  /// Lama kunjungan dalam menit, dihitung server saat absen keluar.
+  durationMin  Int?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  leader   User        @relation(fields: [leaderId], references: [id])
+  pharmacy Pharmacy    @relation(fields: [pharmacyId], references: [id])
+  checkIn  Attendance  @relation("VisitCheckIn", fields: [checkInId], references: [id])
+  checkOut Attendance? @relation("VisitCheckOut", fields: [checkOutId], references: [id])
+
+  @@index([leaderId, businessDate])
+  @@index([pharmacyId, businessDate])
+}
+
+/// Sesi kerja harian Team Leader (ABS-03): mulai saat absen masuk pertama, selesai saat
+/// TL menekan "Selesai hari ini" atau batas jam kerja lewat. Lokasi live hanya diterima di dalamnya.
+model LeaderWorkDay {
+  id           String    @id @default(uuid())
+  leaderId     String
+  businessDate String
+  startedAt    DateTime
+  endedAt      DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  leader User @relation(fields: [leaderId], references: [id])
+
+  @@unique([leaderId, businessDate])
+}
+
+/// Titik lokasi live Team Leader (ABS-03). Jam memakai jam server.
+model LocationPing {
+  id           String   @id @default(uuid())
+  userId       String
+  businessDate String
+  recordedAt   DateTime @default(now())
+  latitude     Float
+  longitude    Float
+  accuracyM    Float
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, recordedAt])
+  @@index([businessDate])
+}
+
+/// Rencana kunjungan mingguan Team Leader (KNJ-01). Terkunci mulai Senin 00:00 WIB;
+/// perubahan setelahnya tetap boleh tetapi ditandai dan tercatat di riwayat.
+model VisitPlan {
+  id        String   @id @default(uuid())
+  leaderId  String
+  /// Senin awal minggu, YYYY-MM-DD.
+  weekStart String
+  /// Senin 00:00 WIB pada `weekStart`.
+  lockedAt  DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leader User            @relation(fields: [leaderId], references: [id])
+  items  VisitPlanItem[]
+
+  @@unique([leaderId, weekStart])
+}
+
+model VisitPlanItem {
+  id             String    @id @default(uuid())
+  planId         String
+  date           String
+  pharmacyId     String
+  /// Ditambahkan setelah rencana terkunci.
+  addedAfterLock Boolean   @default(false)
+  /// Dihapus setelah rencana terkunci; baris tetap ada supaya tampil di evaluasi.
+  removedAt      DateTime?
+  /// KNJ-02: alasan wajib bila apotek rencana tidak dikunjungi.
+  missReason     String?
+  missReasonAt   DateTime?
+  evidenceFileId String?   @unique
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  plan     VisitPlan   @relation(fields: [planId], references: [id])
+  pharmacy Pharmacy    @relation(fields: [pharmacyId], references: [id])
+  evidence FileObject? @relation(fields: [evidenceFileId], references: [id])
+
+  @@index([planId, date])
 }

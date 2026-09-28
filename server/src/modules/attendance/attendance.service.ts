@@ -1,13 +1,21 @@
-import { AttendanceExceptionStatus, AttendanceKind, FilePurpose, FileStatus, PharmacyStatus, Prisma, UserRole } from "@prisma/client";
+import { AttendanceExceptionStatus, AttendanceKind, PharmacyStatus, Prisma, UserRole } from "@prisma/client";
 import { AppError } from "../../middleware/error-handler";
 import { recordAudit } from "../../utils/audit";
 import type { AuditActor, AuditContext } from "../../utils/audit";
-import { distanceInMeters } from "../../utils/geo";
 import { prisma } from "../../utils/prisma";
 import { scopeFor, spgIdFilter } from "../../utils/scope";
 import { businessDate } from "../../utils/time";
 import { notifyUser, notifyUsersByRole } from "../notifications/notifications.service";
 import { getAttendanceSettings } from "../settings/settings.service";
+import {
+  assertFaceCheckPassed,
+  assertPhotoUsable,
+  assertWithinRadius,
+  lockUser,
+  measureLocation,
+  pharmacyForAttendance,
+  round1,
+} from "./attendance-checks";
 import { evaluateAttendanceDay } from "./attendance-status";
 import type { AttendanceStatus } from "./attendance-status";
 import type {
@@ -33,21 +41,6 @@ const attendanceView = {
   exceptionId: true,
 } satisfies Prisma.AttendanceSelect;
 
-const pharmacyForAttendance = {
-  id: true,
-  name: true,
-  address: true,
-  latitude: true,
-  longitude: true,
-  radiusM: true,
-  is24h: true,
-  openTime: true,
-  closeTime: true,
-  status: true,
-} satisfies Prisma.PharmacySelect;
-
-const round1 = (value: number) => Math.round(value * 10) / 10;
-
 /** AB-03: SPG hanya bisa absen di apotek tempat ia ditempatkan saat ini. */
 const findAssignedPharmacy = async (spgId: string, pharmacyId: string) => {
   const placement = await prisma.placement.findFirst({
@@ -65,28 +58,6 @@ const findAssignedPharmacy = async (spgId: string, pharmacyId: string) => {
 
   return placement.pharmacy;
 };
-
-/** Foto harus hasil unggahan pengguna ini sendiri, untuk absen, dan belum pernah dipakai. */
-const assertPhotoUsable = async (userId: string, photoFileId: string) => {
-  const file = await prisma.fileObject.findUnique({
-    where: { id: photoFileId },
-    select: { uploadedById: true, purpose: true, status: true, attendance: { select: { id: true } }, attendanceException: { select: { id: true } } },
-  });
-
-  if (!file || file.uploadedById !== userId || file.purpose !== FilePurpose.ATTENDANCE_PHOTO) {
-    throw new AppError(400, "Foto absen tidak valid");
-  }
-
-  if (file.status !== FileStatus.UPLOADED) {
-    throw new AppError(400, "Foto absen belum selesai diunggah");
-  }
-
-  if (file.attendance || file.attendanceException) {
-    throw new AppError(409, "Foto ini sudah dipakai. Ambil foto baru.");
-  }
-};
-
-const lockUser = (tx: Tx, userId: string) => tx.$queryRaw`SELECT id FROM "User" WHERE id = ${userId} FOR UPDATE`;
 
 /**
  * Urutan absen dalam sehari (ABS-01): pulang hanya setelah masuk di apotek yang sama, dan
@@ -138,11 +109,6 @@ const assertSequence = async (
   }
 };
 
-const measureLocation = (
-  pharmacy: { latitude: number; longitude: number },
-  input: { latitude: number; longitude: number },
-) => round1(distanceInMeters(input, pharmacy));
-
 /** ABS-01: absen masuk/pulang dengan foto langsung + lokasi dalam radius apotek, memakai jam server. */
 export const createAttendance = async (input: CreateAttendanceInput, actor: AuditActor, context: AuditContext) => {
   const now = new Date();
@@ -150,34 +116,13 @@ export const createAttendance = async (input: CreateAttendanceInput, actor: Audi
   const pharmacy = await findAssignedPharmacy(actor.id, input.pharmacyId);
   await assertPhotoUsable(actor.id, input.photoFileId);
 
-  if (!input.faceCheck.passed) {
-    throw new AppError(400, "Verifikasi wajah belum berhasil. Ulangi foto.", "FACE_CHECK_FAILED");
-  }
+  assertFaceCheckPassed(input.faceCheck);
 
   const settings = await getAttendanceSettings();
-  const distanceM = measureLocation(pharmacy, input);
-  const location = { distanceM, radiusM: pharmacy.radiusM, accuracyM: round1(input.accuracyM), maxAccuracyM: settings.maxAccuracyM };
-
-  if (input.accuracyM > settings.maxAccuracyM) {
-    throw new AppError(
-      422,
-      `Sinyal GPS belum akurat (±${Math.round(input.accuracyM)} m). Tunggu sebentar di dekat pintu atau jendela, lalu coba lagi.`,
-      "LOW_ACCURACY",
-      location,
-    );
-  }
-
-  if (distanceM > pharmacy.radiusM) {
-    throw new AppError(
-      422,
-      `Anda berada ${Math.round(distanceM)} m dari ${pharmacy.name}. Absen hanya bisa dalam radius ${pharmacy.radiusM} m.`,
-      "OUTSIDE_RADIUS",
-      location,
-    );
-  }
+  const location = assertWithinRadius(pharmacy, input, settings.maxAccuracyM);
+  const { distanceM } = location;
 
   const attendance = await prisma.$transaction(async (tx) => {
-    // Kunci per pengguna supaya ketukan ganda tidak menghasilkan dua absen.
     await lockUser(tx, actor.id);
     await assertSequence(tx, { userId: actor.id, pharmacyId: pharmacy.id, date, kind: input.kind });
 

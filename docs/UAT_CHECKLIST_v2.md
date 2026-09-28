@@ -133,3 +133,44 @@ Uji absen dari HP sungguhan lewat HTTPS (staging), di dalam dan di luar apotek d
 - [ ] Super Admin bisa melihat Pemantauan (lewat Beranda) tetapi tidak bisa menulis catatan atau menyetujui pengecualian.
 - [ ] Team Leader hanya melihat absen dan foto SPG timnya.
 - [ ] Beranda: Admin/Super Admin/Team Leader melihat kartu "Absen hari ini"; SPG melihat kartu "Hari ini" dengan tombol Buka absen.
+
+## Tahap 4 — Kunjungan Team Leader & lokasi live
+
+Sebelum uji di staging, jalankan `prisma migrate deploy` (migrasi `20261001000000_leader_visits`) lalu seed ulang supaya rencana kunjungan demo tersedia. Uji dari HP sungguhan lewat HTTPS dengan akun Team Leader `0812-0000-0003`.
+
+### Absen kunjungan (ABS-02)
+
+- [ ] Menu Absen Kunjungan menampilkan status sesi kerja, akurasi GPS, apotek rencana hari ini, dan "Apotek lain" (6 terdekat, bisa dicari) — termasuk apotek di luar tim.
+- [ ] Absen masuk memakai kamera depan langsung + deteksi wajah/kedip, sama seperti absen SPG; foto bercap nama, "Kunjungan masuk", apotek, dan jam WIB.
+- [ ] Bila kedip tidak terdeteksi 30 detik, hanya ada tombol "Coba lagi" (tidak ada pengecualian untuk kunjungan).
+- [ ] Di luar radius atau GPS kurang akurat ditolak dengan jarak/akurasi ditampilkan; apotek nonaktif tidak bisa diabsen.
+- [ ] Setelah absen masuk, kartu "Sedang berkunjung" tampil; tombol Absen masuk di apotek lain nonaktif dengan pesan "Absen keluar dulu dari …".
+- [ ] Absen keluar hanya di apotek yang sedang dikunjungi; lama kunjungan tercatat otomatis dan tampil di "Kunjungan hari ini".
+- [ ] Apotek yang sama boleh dikunjungi lagi di hari yang sama (kunjungan baru).
+
+### Sesi kerja & lokasi live (ABS-03)
+
+- [ ] Sebelum absen masuk pertama, sesi "Belum mulai" dan tidak ada banner lokasi live.
+- [ ] Setelah absen masuk pertama, banner "Lokasi live aktif · terakhir terkirim …" tampil di semua halaman TL; lokasi terkirim tiap 5 menit selama aplikasi terbuka dan layar dijaga menyala (bila browser mendukung).
+- [ ] "Selesai hari ini" hanya bisa setelah absen keluar; sesudahnya banner hilang dan lokasi tidak dikirim lagi. Absen masuk lagi membuka sesi kembali.
+- [ ] Lewat batas jam kerja (Pengaturan → Absen → Batas jam kerja Team Leader, bawaan 21:00) lokasi berhenti dikirim walau belum menekan "Selesai hari ini".
+- [ ] Izin lokasi ditolak menampilkan banner merah "Lokasi live tidak terkirim".
+- [ ] Super Admin/Admin: menu Peta Leader menampilkan setiap TL (status kerja, lokasi terakhir, jumlah & lama kunjungan) dan marker posisi terakhir; memilih TL menampilkan jejak harian (garis) dan apotek yang dikunjungi.
+- [ ] Peta hari ini diperbarui tiap menit; tanggal lalu bisa dipilih. Klik kunjungan menampilkan foto masuk/keluar, jarak, akurasi, dan tautan peta.
+- [ ] Beranda Super Admin/Admin menampilkan kartu "Team Leader hari ini" (mulai kerja, sedang bekerja, kunjungan, di apotek).
+
+### Rencana kunjungan (KNJ-01)
+
+- [ ] Menu Rencana Kunjungan: pilih minggu, tambah/hapus apotek aktif per hari, "Salin minggu lalu" hanya mengisi hari kosong, "Batalkan" membuang draf, "Simpan" menyimpan hari yang berubah.
+- [ ] Minggu depan bebas diubah (belum terkunci); minggu berjalan terkunci sejak Senin 00.00 WIB.
+- [ ] Mengubah rencana yang terkunci tetap bisa: apotek tambahan diberi label "Ditambah setelah terkunci", apotek yang dihapus tampil dicoret "dihapus setelah terkunci", dan Super Admin menerima notifikasi "Rencana kunjungan diubah".
+- [ ] Hari yang sudah lewat, minggu lalu, dan minggu lebih dari 4 minggu ke depan tidak bisa diubah.
+- [ ] Setiap perubahan rencana tercatat di Riwayat.
+
+### Evaluasi kunjungan (KNJ-02)
+
+- [ ] TL: tab Evaluasi menampilkan per hari apotek rencana (Dikunjungi / Tidak dikunjungi / Belum), jam dan lama kunjungan, serta kunjungan di luar rencana.
+- [ ] Apotek rencana yang lewat tanpa kunjungan wajib diberi alasan (min. 5 karakter); bukti foto/PDF opsional (mis. surat dokter) bisa dilampirkan, diganti, atau dilepas.
+- [ ] Beranda dan Absen Kunjungan TL mengingatkan jumlah apotek yang belum diberi alasan, dengan tautan ke minggu yang tepat.
+- [ ] Super Admin/Admin: menu Evaluasi Kunjungan menampilkan ringkasan semua TL per minggu (rencana, dikunjungi, tidak dikunjungi, tanpa alasan, di luar rencana, total durasi) dan rincian per hari untuk TL yang dipilih, termasuk alasan dan tautan bukti.
+- [ ] TL lain, SPG, dan Kasir tidak bisa membuka rencana/evaluasi TL lain (403) atau Peta Leader (menu tidak tampil, alamat langsung → "Halaman tidak ditemukan").

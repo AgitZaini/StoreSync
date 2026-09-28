@@ -13,8 +13,9 @@ export type AllowedMimeType = keyof typeof FILE_EXTENSIONS;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
-// Foto bukti (absen, kasir, retur, dsb.) wajib gambar; hanya dokumen yang boleh PDF.
-const PURPOSES_ACCEPTING_PDF = new Set<FilePurpose>([FilePurpose.DOCTOR_NOTE, FilePurpose.MOU_DOCUMENT]);
+// Foto bukti (absen, kasir, retur, dsb.) wajib gambar; hanya dokumen yang boleh PDF
+// (termasuk bukti kunjungan yang tidak terlaksana, mis. surat dokter).
+const PURPOSES_ACCEPTING_PDF = new Set<FilePurpose>([FilePurpose.DOCTOR_NOTE, FilePurpose.MOU_DOCUMENT, FilePurpose.VISIT_EVIDENCE]);
 
 export const presignFileSchema = z
   .object({

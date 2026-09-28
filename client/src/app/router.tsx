@@ -11,6 +11,7 @@ import {
   AttendanceMonitorPage,
   AttendancePage,
   AuditLogPage,
+  LeaderMapPage,
   MySchedulePage,
   PharmaciesPage,
   PharmacyFormPage,
@@ -20,6 +21,9 @@ import {
   TeamPage,
   UserDetailPage,
   UsersPage,
+  VisitAttendancePage,
+  VisitEvaluationPage,
+  VisitPlanPage,
 } from "./lazy-pages";
 
 export const router = createBrowserRouter([
@@ -63,11 +67,19 @@ export const router = createBrowserRouter([
           },
           {
             element: <RequireRole roles={["ADMIN", "SUPER_ADMIN"]} />,
-            children: [{ path: "/pemantauan-absen", element: <AttendanceMonitorPage /> }],
+            children: [
+              { path: "/pemantauan-absen", element: <AttendanceMonitorPage /> },
+              { path: "/peta-leader", element: <LeaderMapPage /> },
+              { path: "/evaluasi-kunjungan", element: <VisitEvaluationPage /> },
+            ],
           },
           {
             element: <RequireRole roles={["TEAM_LEADER"]} />,
-            children: [{ path: "/tim", element: <TeamPage /> }],
+            children: [
+              { path: "/tim", element: <TeamPage /> },
+              { path: "/absen-kunjungan", element: <VisitAttendancePage /> },
+              { path: "/rencana-kunjungan", element: <VisitPlanPage /> },
+            ],
           },
           { path: "*", element: <NotFoundPage /> },
         ],

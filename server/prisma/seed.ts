@@ -2,7 +2,7 @@ import "dotenv/config";
 import { PharmacyStatus, PrismaClient, UserRole, UserStatus } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
 import { normalizePhone } from "../src/utils/phone";
-import { addBusinessDays, businessDate, mondayOf, weekDates } from "../src/utils/time";
+import { addBusinessDays, businessDate, mondayOf, startOfBusinessDay, weekDates } from "../src/utils/time";
 
 const prisma = new PrismaClient();
 
@@ -181,6 +181,38 @@ async function seedDemoMasterData(users: Map<string, { id: string }>) {
     });
   }
   console.log(`  Jadwal      SPG Demo, minggu ${thisWeek} dan berikutnya`);
+
+  await seedDemoVisitPlans(leader.id, pharmacies);
+}
+
+/**
+ * Rencana kunjungan Team Leader demo (Tahap 4): minggu lalu (untuk dicoba di Evaluasi, apotek
+ * yang tidak dikunjungi wajib diberi alasan), minggu ini, dan minggu depan. Hanya menambah apotek
+ * yang belum ada, jadi perubahan saat UAT tidak ditimpa.
+ */
+async function seedDemoVisitPlans(leaderId: string, pharmacies: Array<{ id: string }>) {
+  const [sehat, keluarga, harapan] = pharmacies;
+  // Senin–Sabtu; Minggu tanpa kunjungan.
+  const pattern = [[sehat, keluarga], [harapan], [sehat, keluarga], [keluarga, harapan], [sehat], [keluarga]];
+  const thisWeek = mondayOf(businessDate());
+
+  for (const weekStart of [addBusinessDays(thisWeek, -7), thisWeek, addBusinessDays(thisWeek, 7)]) {
+    const plan = await prisma.visitPlan.upsert({
+      where: { leaderId_weekStart: { leaderId, weekStart } },
+      update: {},
+      create: { leaderId, weekStart, lockedAt: startOfBusinessDay(weekStart) },
+    });
+    const dates = weekDates(weekStart);
+    for (const [index, dayPharmacies] of pattern.entries()) {
+      for (const pharmacy of dayPharmacies) {
+        const exists = await prisma.visitPlanItem.findFirst({ where: { planId: plan.id, date: dates[index], pharmacyId: pharmacy.id } });
+        if (!exists) {
+          await prisma.visitPlanItem.create({ data: { planId: plan.id, date: dates[index], pharmacyId: pharmacy.id } });
+        }
+      }
+    }
+  }
+  console.log(`  Rencana     Team Leader Demo, minggu ${addBusinessDays(thisWeek, -7)} s/d ${addBusinessDays(thisWeek, 7)}`);
 }
 
 async function main() {

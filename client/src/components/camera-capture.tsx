@@ -51,18 +51,21 @@ const captureFrame = async (video: HTMLVideoElement, stampLines: string[]) => {
 /**
  * Kamera depan layar penuh untuk foto absen (AB-01): hanya dari kamera langsung, tanpa galeri,
  * dengan deteksi satu wajah + kedip. Bila deteksi tidak bisa berjalan, foto tetap bisa diambil
- * dengan `faceCheck.passed = false` supaya pemanggil mengarahkan ke pengecualian Admin.
+ * dengan `faceCheck.passed = false` supaya pemanggil mengarahkan ke pengecualian Admin. Alur tanpa
+ * pengecualian (absen kunjungan Team Leader) memakai `allowUnverified={false}`: hanya bisa mengulang.
  */
 export function CameraCapture({
   title,
   stampLines,
   onCapture,
   onClose,
+  allowUnverified = true,
 }: {
   title: string;
   stampLines: () => string[];
   onCapture: (photo: CapturedPhoto) => void;
   onClose: () => void;
+  allowUnverified?: boolean;
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraSupported = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices);
@@ -175,7 +178,11 @@ export function CameraCapture({
       .catch(() => {
         if (stopped) return;
         setPhase("manual");
-        setHint("Verifikasi wajah tidak bisa berjalan di perangkat ini. Ambil foto lalu ajukan pengecualian ke Admin.");
+        setHint(
+          allowUnverified
+            ? "Verifikasi wajah tidak bisa berjalan di perangkat ini. Ambil foto lalu ajukan pengecualian ke Admin."
+            : "Verifikasi wajah tidak bisa berjalan di perangkat ini. Muat ulang halaman atau pakai Chrome/Safari terbaru.",
+        );
       });
 
     return () => {
@@ -183,7 +190,7 @@ export function CameraCapture({
       cancelAnimationFrame(frameRequest);
       window.clearTimeout(manualTimer);
     };
-  }, [detecting, attempt, takePhoto]);
+  }, [detecting, attempt, takePhoto, allowUnverified]);
 
   const retake = () => {
     if (captured) URL.revokeObjectURL(captured.previewUrl);
@@ -246,6 +253,16 @@ export function CameraCapture({
         ) : phase === "error" ? (
           <div className="mx-auto flex max-w-md gap-2">
             <button type="button" onClick={retake} className={cn(buttonStyles.secondary, "h-12 flex-1")}>
+              Coba lagi
+            </button>
+          </div>
+        ) : (phase === "manual" || showManual) && !allowUnverified ? (
+          <div className="mx-auto max-w-md space-y-2">
+            {phase !== "manual" ? (
+              <p className="text-center text-xs text-white/70">Kedipan belum terdeteksi. Cari tempat lebih terang dan hadapkan wajah ke kamera.</p>
+            ) : null}
+            <button type="button" onClick={retake} className={cn(buttonStyles.secondary, "h-12 w-full")}>
+              <RefreshCw />
               Coba lagi
             </button>
           </div>

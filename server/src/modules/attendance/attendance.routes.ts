@@ -12,7 +12,7 @@ export const attendanceRouter = Router();
 
 attendanceRouter.use(authenticate);
 
-// SPG (ABS-01). Absen kunjungan Team Leader dibuat terpisah di Tahap 4.
+// SPG (ABS-01). Absen kunjungan Team Leader ada di /visits (ABS-02).
 attendanceRouter.post("/", authorize(SPG), validateBody(createAttendanceSchema), attendanceController.createAttendance);
 attendanceRouter.get("/today", authorize(SPG), attendanceController.getToday);
 attendanceRouter.get("/", authorize(SUPER_ADMIN, ADMIN, TEAM_LEADER, SPG), attendanceController.listHistory);

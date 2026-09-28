@@ -13,7 +13,7 @@ Dokumen acuan:
 - [x] Tahap 1 — Fondasi v2: login nomor HP, 5 peran, wajib ganti sandi pertama, sesi idle, riwayat (audit log) append-only, upload berkas ke R2/MinIO, tampilan responsive
 - [x] Tahap 2 — Akun & data utama: pengguna, tim, apotek + akun kasir otomatis (peta & radius), penempatan SPG maks. 3 apotek, produk, target omzet, pengaturan cuti/potongan, riwayat, batas akses per peran
 - [x] Tahap 3 — Jadwal & absen SPG: jadwal mingguan oleh Admin, absen foto langsung + deteksi wajah/kedip + radius GPS, pemantauan telat/tidak masuk, pengecualian absen disetujui Admin
-- [ ] Tahap 4 — Kunjungan Team Leader & lokasi live
+- [x] Tahap 4 — Kunjungan Team Leader & lokasi live: absen kunjungan foto + radius di semua apotek aktif dengan durasi otomatis, sesi kerja + lokasi live tiap 5 menit (Wake Lock), peta leader, rencana kunjungan mingguan terkunci Senin 00.00, evaluasi rencana vs kunjungan dengan alasan + bukti
 - [ ] Tahap 5 — Stok gudang & order
 - [ ] Tahap 6 — Laporan penjualan, persetujuan kasir & retur
 - [ ] Tahap 7 — Stock opname, serah terima & status gajian
@@ -74,7 +74,7 @@ Semua akun memakai kata sandi `Password123!`.
 | --- | --- | --- |
 | Super Admin | `0812-0000-0001` | |
 | Admin | `0812-0000-0002` | |
-| Team Leader | `0812-0000-0003` | Memimpin "Tim Demo Jakarta" |
+| Team Leader | `0812-0000-0003` | Memimpin "Tim Demo Jakarta"; punya rencana kunjungan minggu lalu (belum diberi alasan), minggu ini, dan minggu depan |
 | SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan |
 | SPG baru | `0812-0000-0006` | Wajib ganti sandi; belum ditempatkan |
 | Kasir Apotek | `0812-0000-0005` | Kasir Apotek Demo Sehat |
@@ -156,7 +156,19 @@ POST  /api/attendance/exceptions               SPG — pengecualian saat GPS/ver
 GET   /api/attendance/exceptions?status=       Super Admin, Admin, Team Leader, SPG
 POST  /api/attendance/exceptions/:id/approve   Admin — absen dicatat dengan jam saat SPG mencoba
 POST  /api/attendance/exceptions/:id/reject    Admin — { note }
-PUT   /api/settings/attendance                 Super Admin — { maxAccuracyM, lateToleranceMinutes }
+PUT   /api/settings/attendance                 Super Admin — { maxAccuracyM, lateToleranceMinutes, leaderWorkEndTime }
+
+# Kunjungan Team Leader & lokasi live (Tahap 4)
+POST  /api/visits/attendance                   Team Leader — { pharmacyId, kind, photoFileId, latitude, longitude, accuracyM, faceCheck }; semua apotek aktif
+GET   /api/visits/today                        Team Leader — sesi kerja, kunjungan & rencana hari ini, alasan yang belum diisi
+POST  /api/visits/end-day                      Team Leader — "Selesai hari ini" (lokasi live berhenti)
+POST  /api/locations/ping                      Team Leader — { latitude, longitude, accuracyM }; hanya selama sesi kerja
+GET   /api/locations/leaders?date=             Super Admin, Admin — posisi terakhir + status kerja setiap TL
+GET   /api/locations/leaders/:id/trail?date=   Super Admin, Admin — jejak harian + kunjungan
+GET   /api/visit-plans?weekStart=&leaderId=    Team Leader (miliknya), Super Admin, Admin — rencana + evaluasi per hari
+GET   /api/visit-plans/summary?weekStart=      Super Admin, Admin — ringkasan semua TL
+PUT   /api/visit-plans/week/:weekStart         Team Leader — { days: [{ date, pharmacyIds }] }; terkunci Senin 00.00 WIB
+PUT   /api/visit-plans/items/:id/reason        Team Leader — { reason, evidenceFileId? } untuk apotek rencana yang tidak dikunjungi
 
 # Berkas & notifikasi (Tahap 1)
 POST  /api/files/presign             { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
@@ -176,6 +188,7 @@ Selama `mustChangePassword` aktif, semua endpoint kecuali `/auth/me`, `/auth/cha
 - Query list/get memakai batas akses dari `scopeFor(actor)` (`server/src/utils/scope.ts`).
 - Tanggal bisnis memakai WIB (`server/src/utils/time.ts`). Client juga menampilkan jam dalam WIB.
 - Halaman client ada di `client/src/features/<modul>/`, menu per peran di `client/src/routes/navigation.ts`.
+- Absen kunjungan Team Leader memakai tabel `Attendance` yang sama (pemeriksaan di `modules/attendance/attendance-checks.ts`); `LeaderVisit` menautkan absen masuk/keluar dan menyimpan durasi. Lokasi live web hanya berjalan saat aplikasi terbuka (`watchPosition` + Wake Lock, ping tiap 5 menit); titik lokasi tidak dicatat di riwayat.
 - Absen (`Attendance`) juga append-only di database. Absen web memakai kamera langsung + deteksi wajah/kedip MediaPipe; model `client/src/assets/models/face_landmarker.task` dan WASM-nya di-host sendiri (±7 MB setelah kompresi, diunduh sekali lalu di-cache). Deteksi lokasi palsu dan tracking latar belakang menyusul di aplikasi mobile (Tahap 10).
 
 ## Deployment

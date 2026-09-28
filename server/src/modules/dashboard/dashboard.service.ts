@@ -3,11 +3,13 @@ import type { AuditActor } from "../../utils/audit";
 import { prisma } from "../../utils/prisma";
 import { businessDate } from "../../utils/time";
 import { getMonitor } from "../attendance/attendance.service";
+import { listLeaderPositions } from "../locations/locations.service";
 
 /** Ringkasan data utama untuk dashboard Super Admin dan Admin. Tahap berikutnya menambah omzet, absen, dsb. */
 export const getOverview = async (actor: AuditActor) => {
   const month = businessDate().slice(0, 7);
   const attendanceToday = (await getMonitor(undefined, actor)).summary;
+  const leadersToday = (await listLeaderPositions(undefined)).summary;
   const [usersByRole, pharmaciesByStatus, spgWithoutPlacement, spgWithoutTeam, activeProducts, activeSpg, targets] =
     await Promise.all([
       prisma.user.groupBy({ by: ["role"], where: { status: UserStatus.ACTIVE }, _count: { _all: true } }),
@@ -42,6 +44,7 @@ export const getOverview = async (actor: AuditActor) => {
 
   return {
     attendanceToday,
+    leadersToday,
     activeUsers,
     pharmacies,
     activeProducts,

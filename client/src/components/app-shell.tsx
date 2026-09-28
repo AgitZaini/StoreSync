@@ -5,6 +5,7 @@ import { useCurrentUser, useAuth } from "../features/auth/auth-context";
 import { useIdleLogout } from "../features/auth/use-idle-logout";
 import { useMarkAllNotificationsRead, useNotifications } from "../features/notifications/notifications-api";
 import { useOpenNotification } from "../features/notifications/use-open-notification";
+import { LeaderTracker } from "../features/visits/leader-tracker";
 import { formatPhone, getInitials } from "../lib/format";
 import { useApiHealth } from "../lib/health";
 import { roleLabels } from "../lib/roles";
@@ -75,6 +76,7 @@ export function AppShell() {
         </header>
 
         <main className="mx-auto w-full max-w-[1480px] space-y-5 px-4 pb-28 pt-5 sm:px-6 lg:px-8 lg:py-8">
+          {user.role === "TEAM_LEADER" ? <LeaderTracker /> : null}
           <Suspense
             fallback={
               <div className="grid place-items-center py-20">

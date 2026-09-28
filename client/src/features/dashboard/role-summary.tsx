@@ -1,12 +1,13 @@
-import { AlertTriangle, ArrowRight, Package, ScanFace, Store, Target, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, MapPin, MapPinned, Package, ScanFace, Store, Target, Users, UsersRound } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { buttonStyles } from "../../components/styles";
-import { Card, EmptyState, Notice, Spinner, StatCard } from "../../components/ui";
+import { Card, EmptyState, Notice, Pill, Spinner, StatCard } from "../../components/ui";
 import {
   currentMonth,
   formatCompactCurrency,
   formatCurrency,
+  formatDuration,
   formatMonth,
   formatOpeningHours,
   formatScheduleValue,
@@ -16,12 +17,13 @@ import {
 import { cn } from "../../lib/utils";
 import type { AuthUser } from "../../types/auth";
 import type { MonitorSummary } from "../../types/attendance";
-import type { PharmacyBase } from "../../types/master-data";
+import type { Overview, PharmacyBase } from "../../types/master-data";
 import { useAttendanceMonitor, useTodayAttendance } from "../attendance/attendance-api";
 import { AttendanceStatusPill } from "../attendance/attendance-status-pill";
 import { usePharmacies } from "../pharmacies/pharmacies-api";
 import { useTargets } from "../products/products-api";
 import { useTeams } from "../users/users-api";
+import { useVisitToday } from "../visits/visits-api";
 import { useOverview } from "./dashboard-api";
 
 function Loading() {
@@ -90,6 +92,42 @@ function AttendanceTodayCard({ summary, link }: { summary: MonitorSummary; link:
   );
 }
 
+/** ABS-03 + KNJ-02 di beranda Super Admin/Admin: siapa yang sedang bekerja dan berkunjung. */
+function LeadersTodayCard({ summary }: { summary: Overview["leadersToday"] }) {
+  const chips = [
+    { label: "Sedang bekerja", value: summary.active, className: "text-green-600" },
+    { label: "Kunjungan", value: summary.visits, className: "text-brand-600" },
+    { label: "Di apotek", value: summary.openVisits, className: "text-orange-600" },
+  ];
+
+  return (
+    <Card
+      title="Team Leader hari ini"
+      action={
+        <Link to="/peta-leader" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          Buka peta <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      <p className="text-sm text-muted">
+        <span className="text-2xl font-semibold tabular-nums text-ink">{summary.started}</span> dari {summary.leaders} Team Leader sudah mulai
+        kerja
+      </p>
+      <dl className="mt-4 grid grid-cols-3 gap-2">
+        {chips.map((chip) => (
+          <div key={chip.label} className="rounded-xl bg-canvas px-2 py-2 text-center">
+            <dd className={cn("text-lg font-semibold tabular-nums", chip.className)}>{chip.value}</dd>
+            <dt className="text-[11px] text-muted">{chip.label}</dt>
+          </div>
+        ))}
+      </dl>
+      <Link to="/evaluasi-kunjungan" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700">
+        <MapPinned className="size-3.5" /> Evaluasi rencana vs kunjungan
+      </Link>
+    </Card>
+  );
+}
+
 function ManagerSummary({ canManage }: { canManage: boolean }) {
   const overview = useOverview(true);
 
@@ -102,7 +140,10 @@ function ManagerSummary({ canManage }: { canManage: boolean }) {
 
   return (
     <>
-      <AttendanceTodayCard summary={overview.data.attendanceToday} link="/pemantauan-absen" />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <AttendanceTodayCard summary={overview.data.attendanceToday} link="/pemantauan-absen" />
+        <LeadersTodayCard summary={overview.data.leadersToday} />
+      </div>
       <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-4">
         <StatCard label="Karyawan aktif" value={String(staff)} icon={Users} caption={`${activeUsers.SPG} SPG · ${activeUsers.TEAM_LEADER} Team Leader`} />
         <StatCard label="Apotek aktif" value={String(pharmacies.ACTIVE)} icon={Store} caption={`${pharmacies.INACTIVE} nonaktif`} />
@@ -223,6 +264,60 @@ function SpgSummary() {
   );
 }
 
+/** ABS-02 + KNJ-01 di beranda Team Leader: rencana hari ini vs yang sudah dikunjungi. */
+function VisitTodayCard() {
+  const today = useVisitToday();
+  const data = today.data;
+  const visitedPlanned = data?.plan.filter((item) => item.visited).length ?? 0;
+
+  return (
+    <Card
+      title="Kunjungan hari ini"
+      action={
+        data ? (
+          data.workDay.status === "ACTIVE" ? (
+            <Pill tone="green">Sesi kerja aktif</Pill>
+          ) : data.workDay.status === "ENDED" ? (
+            <Pill tone="gray">Selesai</Pill>
+          ) : (
+            <Pill tone="blue">Belum mulai</Pill>
+          )
+        ) : null
+      }
+    >
+      {!data ? (
+        <Loading />
+      ) : (
+        <>
+          <p className="text-sm text-muted">
+            <span className="text-2xl font-semibold tabular-nums text-ink">{visitedPlanned}</span> dari {data.plan.length} apotek rencana sudah
+            dikunjungi · {data.visits.length} kunjungan, {formatDuration(data.totalMinutes)}
+          </p>
+          {data.openVisit ? (
+            <p className="mt-2 text-sm text-ink">
+              Sedang di <strong>{data.openVisit.pharmacy.name}</strong> sejak {formatTime(data.openVisit.checkInAt)} WIB
+            </p>
+          ) : null}
+          {data.missingReasons.count > 0 ? (
+            <div className="mt-3">
+              <Notice>
+                {data.missingReasons.count} apotek rencana tidak dikunjungi dan belum diberi alasan.{" "}
+                <Link to={`/rencana-kunjungan?tab=evaluasi&minggu=${data.missingReasons.weekStart}`} className="font-semibold underline">
+                  Isi alasan
+                </Link>
+              </Notice>
+            </div>
+          ) : null}
+        </>
+      )}
+      <Link to="/absen-kunjungan" className={cn(data?.openVisit ? buttonStyles.primary : buttonStyles.secondary, "mt-5 flex h-11 w-full")}>
+        <MapPin />
+        Buka absen kunjungan
+      </Link>
+    </Card>
+  );
+}
+
 function LeaderSummary() {
   const teams = useTeams();
   const monitor = useAttendanceMonitor(todayDate(), { live: true });
@@ -234,15 +329,21 @@ function LeaderSummary() {
 
   if (!team) {
     return (
-      <Card title="Tim saya">
-        <EmptyState icon={UsersRound}>Anda belum memimpin tim. Hubungi Super Admin.</EmptyState>
-      </Card>
+      <>
+        <VisitTodayCard />
+        <Card title="Tim saya">
+          <EmptyState icon={UsersRound}>Anda belum memimpin tim. Hubungi Super Admin.</EmptyState>
+        </Card>
+      </>
     );
   }
 
   return (
     <>
-      {monitor.data ? <AttendanceTodayCard summary={monitor.data.summary} link="/tim" /> : null}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <VisitTodayCard />
+        {monitor.data ? <AttendanceTodayCard summary={monitor.data.summary} link="/tim" /> : null}
+      </div>
       <Card title={`${team.name} · ${team.members.length} SPG`}>
         {team.members.length === 0 ? (
           <EmptyState icon={UsersRound}>Belum ada SPG di tim Anda.</EmptyState>

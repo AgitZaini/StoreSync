@@ -1,12 +1,13 @@
-import { CheckCircle2, Clock, LocateFixed, LogIn, LogOut, MapPin, ScanFace } from "lucide-react";
+import { CheckCircle2, Clock, LogIn, LogOut, MapPin, ScanFace } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { CameraCapture } from "../../components/camera-capture";
 import type { CapturedPhoto } from "../../components/camera-capture";
 import { Dialog, DialogActions } from "../../components/dialog";
 import { TextArea } from "../../components/form-controls";
+import { LocationBanner } from "../../components/location-banner";
 import { buttonStyles } from "../../components/styles";
 import { useToast } from "../../components/toast-context";
-import { Card, EmptyState, Field, Notice, PageHeader, Pill, Spinner } from "../../components/ui";
+import { BusyOverlay, Card, EmptyState, Field, Notice, PageHeader, Pill, Spinner } from "../../components/ui";
 import { useLiveLocation } from "../../hooks/use-live-location";
 import type { LivePosition } from "../../hooks/use-live-location";
 import { getErrorCode, getErrorMessage } from "../../lib/api";
@@ -46,34 +47,6 @@ type Flow =
   | { step: "rejected"; rejection: Rejection };
 
 const REJECTION_CODES = new Set(["OUTSIDE_RADIUS", "LOW_ACCURACY", "FACE_CHECK_FAILED"]);
-
-function LocationBanner({ location, maxAccuracyM }: { location: ReturnType<typeof useLiveLocation>; maxAccuracyM: number }) {
-  if (location.status === "ready" || (location.position && location.status !== "denied")) {
-    const accuracy = Math.round(location.position!.accuracyM);
-    const good = accuracy <= maxAccuracyM;
-
-    return (
-      <div className={cn("flex items-center gap-3 rounded-2xl px-4 py-3 text-sm", good ? "bg-green-50 text-green-800" : "bg-orange-50 text-orange-800")}>
-        <LocateFixed className="size-5 shrink-0" />
-        <span>
-          Lokasi terkunci, akurasi <strong>±{accuracy} m</strong>
-          {good ? "" : `. Tunggu sampai di bawah ±${maxAccuracyM} m (dekat pintu/jendela).`}
-        </span>
-      </div>
-    );
-  }
-
-  if (location.status === "locating") {
-    return (
-      <div className="flex items-center gap-3 rounded-2xl bg-canvas px-4 py-3 text-sm text-muted">
-        <Spinner className="size-4" />
-        Mencari lokasi GPS...
-      </div>
-    );
-  }
-
-  return <Notice tone="red">{location.message}</Notice>;
-}
 
 function PharmacyAttendanceCard({
   item,
@@ -415,14 +388,7 @@ export function AttendancePage() {
         />
       ) : null}
 
-      {flow.step === "submitting" ? (
-        <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/50 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-pop">
-            <Spinner />
-            <p className="text-sm font-medium text-ink">Mengirim {KIND_LABEL[flow.kind].toLowerCase()}...</p>
-          </div>
-        </div>
-      ) : null}
+      {flow.step === "submitting" ? <BusyOverlay label={`Mengirim ${KIND_LABEL[flow.kind].toLowerCase()}...`} /> : null}
 
       {flow.step === "rejected" ? (
         <RejectionDialog

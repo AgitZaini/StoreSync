@@ -125,11 +125,22 @@ function AttendanceSettingsCard({ settings }: { settings: Settings }) {
   const showToast = useToast();
   const [maxAccuracy, setMaxAccuracy] = useState(String(settings.attendance.maxAccuracyM));
   const [tolerance, setTolerance] = useState(String(settings.attendance.lateToleranceMinutes));
+  const [workEnd, setWorkEnd] = useState(settings.attendance.leaderWorkEndTime);
   const accuracy = Number(maxAccuracy);
   const lateTolerance = Number(tolerance);
+  const workEndValid = /^([01]\d|2[0-3]):[0-5]\d$/.test(workEnd) && workEnd >= "12:00";
   const valid =
-    Number.isInteger(accuracy) && accuracy >= 10 && accuracy <= 1000 && Number.isInteger(lateTolerance) && lateTolerance >= 0 && lateTolerance <= 120;
-  const changed = accuracy !== settings.attendance.maxAccuracyM || lateTolerance !== settings.attendance.lateToleranceMinutes;
+    Number.isInteger(accuracy) &&
+    accuracy >= 10 &&
+    accuracy <= 1000 &&
+    Number.isInteger(lateTolerance) &&
+    lateTolerance >= 0 &&
+    lateTolerance <= 120 &&
+    workEndValid;
+  const changed =
+    accuracy !== settings.attendance.maxAccuracyM ||
+    lateTolerance !== settings.attendance.lateToleranceMinutes ||
+    workEnd !== settings.attendance.leaderWorkEndTime;
 
   return (
     <Card title="Absen" action={<MapPin className="size-[18px] text-brand-500" />}>
@@ -140,6 +151,13 @@ function AttendanceSettingsCard({ settings }: { settings: Settings }) {
         <Field label="Toleransi telat (menit)" hint="Hanya mengubah label di pemantauan; jam absen tetap tercatat apa adanya.">
           <TextInput type="number" inputMode="numeric" min={0} max={120} value={tolerance} onChange={(event) => setTolerance(event.target.value)} />
         </Field>
+        <Field
+          label="Batas jam kerja Team Leader (WIB)"
+          hint="Lokasi live leader berhenti diterima setelah jam ini, walau belum menekan Selesai hari ini."
+          error={workEndValid ? undefined : "Isi jam antara 12:00 dan 23:59"}
+        >
+          <TextInput type="time" min="12:00" value={workEnd} onChange={(event) => setWorkEnd(event.target.value)} invalid={!workEndValid} />
+        </Field>
       </div>
       <p className="mt-3 text-xs text-muted">Radius absen diatur per apotek di menu Apotek (bawaan 20 m).</p>
       <button
@@ -147,7 +165,7 @@ function AttendanceSettingsCard({ settings }: { settings: Settings }) {
         disabled={!valid || !changed || updateAttendance.isPending}
         onClick={() =>
           updateAttendance.mutate(
-            { maxAccuracyM: accuracy, lateToleranceMinutes: lateTolerance },
+            { maxAccuracyM: accuracy, lateToleranceMinutes: lateTolerance, leaderWorkEndTime: workEnd },
             { onSuccess: () => showToast("Pengaturan absen disimpan") },
           )
         }
