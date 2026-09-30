@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, MapPin, MapPinned, Package, ScanFace, Store, Target, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, MapPin, MapPinned, Package, PackageCheck, ScanFace, Store, Target, Truck, Users, UsersRound, Warehouse } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { buttonStyles } from "../../components/styles";
@@ -21,6 +21,7 @@ import type { Overview, PharmacyBase } from "../../types/master-data";
 import { useAttendanceMonitor, useTodayAttendance } from "../attendance/attendance-api";
 import { AttendanceStatusPill } from "../attendance/attendance-status-pill";
 import { usePharmacies } from "../pharmacies/pharmacies-api";
+import { useFieldStock, useOrders } from "../stock/stock-api";
 import { useTargets } from "../products/products-api";
 import { useTeams } from "../users/users-api";
 import { useVisitToday } from "../visits/visits-api";
@@ -128,6 +129,54 @@ function LeadersTodayCard({ summary }: { summary: Overview["leadersToday"] }) {
   );
 }
 
+/** Tahap 5 di beranda: order yang perlu diputuskan/dikirim dan kondisi stok pusat. */
+function OrdersStockCard({ overview, canManage }: { overview: Overview; canManage: boolean }) {
+  const { orders, warehouse } = overview;
+  const chips = canManage
+    ? [
+        { label: "Menunggu persetujuan", value: orders.submitted, className: "text-orange-600" },
+        { label: "Siap dikirim", value: orders.approved, className: "text-brand-600" },
+        { label: "Selisih terima", value: orders.openDiscrepancies, className: "text-red-600" },
+      ]
+    : [
+        { label: "Siap dikirim", value: orders.approved, className: "text-brand-600" },
+        { label: "Dalam pengiriman", value: orders.shipped, className: "text-violet-600" },
+        { label: "Selisih terima", value: orders.openDiscrepancies, className: "text-red-600" },
+      ];
+
+  return (
+    <Card
+      title="Order & stok pusat"
+      action={
+        <Link to={canManage ? "/persetujuan" : "/order-masuk"} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          {canManage ? "Buka persetujuan" : "Buka order masuk"} <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      <dl className="grid grid-cols-3 gap-2">
+        {chips.map((chip) => (
+          <div key={chip.label} className="rounded-xl bg-canvas px-2 py-2 text-center">
+            <dd className={cn("text-lg font-semibold tabular-nums", chip.value > 0 ? chip.className : "text-ink")}>{chip.value}</dd>
+            <dt className="text-[11px] text-muted">{chip.label}</dt>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 flex items-start gap-2 text-sm text-muted">
+        <Warehouse className="mt-0.5 size-4 shrink-0 text-brand-500" />
+        <span>
+          Stok pusat {warehouse.totalQty.toLocaleString("id-ID")} barang dari {warehouse.products} produk.
+          {warehouse.outOfStock.length > 0 ? (
+            <span className="text-red-600"> Habis: {warehouse.outOfStock.map((product) => product.name).join(", ")}.</span>
+          ) : null}{" "}
+          <Link to="/stok-pusat" className="font-semibold text-brand-600 hover:text-brand-700">
+            Lihat stok
+          </Link>
+        </span>
+      </p>
+    </Card>
+  );
+}
+
 function ManagerSummary({ canManage }: { canManage: boolean }) {
   const overview = useOverview(true);
 
@@ -140,7 +189,8 @@ function ManagerSummary({ canManage }: { canManage: boolean }) {
 
   return (
     <>
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+        <OrdersStockCard overview={overview.data} canManage={canManage} />
         <AttendanceTodayCard summary={overview.data.attendanceToday} link="/pemantauan-absen" />
         <LeadersTodayCard summary={overview.data.leadersToday} />
       </div>
@@ -232,6 +282,50 @@ function SpgTodayCard() {
   );
 }
 
+/** Stok per apotek tugas dan order yang perlu ditindaklanjuti SPG. */
+function SpgStockCard() {
+  const stock = useFieldStock();
+  const orders = useOrders({ status: ["SUBMITTED", "APPROVED", "SHIPPED"] });
+  const toReceive = orders.data?.filter((order) => order.status === "SHIPPED").length ?? 0;
+  const inProgress = (orders.data?.length ?? 0) - toReceive;
+
+  return (
+    <Card title="Stok & order" action={<Package className="size-[18px] text-brand-500" />}>
+      {!stock.data ? (
+        <Loading />
+      ) : stock.data.length === 0 ? (
+        <p className="text-sm text-muted">Belum ada stok.</p>
+      ) : (
+        <ul className="space-y-2">
+          {stock.data.map((group) => (
+            <li key={group.pharmacy.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate text-ink">{group.pharmacy.name}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-ink">{group.totalQty.toLocaleString("id-ID")} barang</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {toReceive > 0 ? (
+        <div className="mt-4">
+          <Notice>{toReceive} order sudah dikirim. Konfirmasi saat barang tiba.</Notice>
+        </div>
+      ) : inProgress > 0 ? (
+        <p className="mt-4 text-xs text-muted">{inProgress} order sedang diproses.</p>
+      ) : null}
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <Link to="/stok-saya" className={cn(buttonStyles.secondary, "h-11")}>
+          <Package />
+          Stok saya
+        </Link>
+        <Link to="/order" className={cn(toReceive > 0 ? buttonStyles.primary : buttonStyles.secondary, "h-11")}>
+          {toReceive > 0 ? <PackageCheck /> : <Truck />}
+          Order
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
 function SpgSummary() {
   const pharmacies = usePharmacies();
   const month = currentMonth();
@@ -240,7 +334,10 @@ function SpgSummary() {
 
   return (
     <>
-      <SpgTodayCard />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <SpgTodayCard />
+        <SpgStockCard />
+      </div>
       <StatCard
         label={`Target omzet ${formatMonth(month)}`}
         value={target ? formatCurrency(target) : "Belum diatur"}

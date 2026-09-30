@@ -133,6 +133,8 @@ export type AuditLogPage = { entries: AuditEntry[]; nextCursor: string | null };
 export type Overview = {
   attendanceToday: MonitorSummary;
   leadersToday: { leaders: number; active: number; started: number; visits: number; openVisits: number };
+  orders: { submitted: number; approved: number; shipped: number; openDiscrepancies: number };
+  warehouse: { products: number; totalQty: number; outOfStock: Ref[] };
   activeUsers: Record<UserRole, number>;
   pharmacies: Record<PharmacyStatus, number>;
   activeProducts: number;

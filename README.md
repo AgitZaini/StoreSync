@@ -7,6 +7,7 @@ Dokumen acuan:
 - [BRD v2.0](docs/BRD_StoreSync_v2.0.md), [PRD v2.0](docs/PRD_StoreSync_v2.0.md), [Flowchart v2.0](docs/flowchart_StoreSync_v2.0.html)
 - [Rencana implementasi bertahap](docs/PLAN_StoreSync_v2.0.md)
 - [Checklist UAT v2](docs/UAT_CHECKLIST_v2.md)
+- [Skenario uji dari nol](docs/SKENARIO_UJI_v2.md) — satu alur antarperan untuk mencoba Tahap 1–5 dari database kosong
 
 ## Status tahapan
 
@@ -14,7 +15,7 @@ Dokumen acuan:
 - [x] Tahap 2 — Akun & data utama: pengguna, tim, apotek + akun kasir otomatis (peta & radius), penempatan SPG maks. 3 apotek, produk, target omzet, pengaturan cuti/potongan, riwayat, batas akses per peran
 - [x] Tahap 3 — Jadwal & absen SPG: jadwal mingguan oleh Admin, absen foto langsung + deteksi wajah/kedip + radius GPS, pemantauan telat/tidak masuk, pengecualian absen disetujui Admin
 - [x] Tahap 4 — Kunjungan Team Leader & lokasi live: absen kunjungan foto + radius di semua apotek aktif dengan durasi otomatis, sesi kerja + lokasi live tiap 5 menit (Wake Lock), peta leader, rencana kunjungan mingguan terkunci Senin 00.00, evaluasi rencana vs kunjungan dengan alasan + bukti
-- [ ] Tahap 5 — Stok gudang & order
+- [x] Tahap 5 — Stok gudang & order: stok pusat (barang masuk ber-PO, penyesuaian beralasan, riwayat mutasi), order SPG → persetujuan Super Admin → kirim Admin → terima SPG dengan tanda selisih, permintaan belum terpenuhi + rekap pembelian, stok SPG per apotek (ledger) dan stok awal go-live
 - [ ] Tahap 6 — Laporan penjualan, persetujuan kasir & retur
 - [ ] Tahap 7 — Stock opname, serah terima & status gajian
 - [ ] Tahap 8 — Cuti/izin & MOU apotek
@@ -75,13 +76,13 @@ Semua akun memakai kata sandi `Password123!`.
 | Super Admin | `0812-0000-0001` | |
 | Admin | `0812-0000-0002` | |
 | Team Leader | `0812-0000-0003` | Memimpin "Tim Demo Jakarta"; punya rencana kunjungan minggu lalu (belum diberi alasan), minggu ini, dan minggu depan |
-| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan |
+| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan, stok awal di kedua apotek, dan satu order menunggu persetujuan |
 | SPG baru | `0812-0000-0006` | Wajib ganti sandi; belum ditempatkan |
 | Kasir Apotek | `0812-0000-0005` | Kasir Apotek Demo Sehat |
 | Kasir Apotek | `0812-0000-0011` | Kasir Apotek Demo Keluarga |
 | Kasir Apotek | `0812-0000-0012` | Kasir Apotek Demo Harapan 24 Jam |
 
-Seed juga membuat 5 produk demo (kode `DEMO-…`) dan target omzet bulan berjalan. Menjalankan seed ulang akan mengembalikan kata sandi dan data demo. Untuk environment baru tanpa akun demo, isi `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_PHONE`, dan `SEED_SUPER_ADMIN_PASSWORD`. Dengan `NODE_ENV=production`, seed hanya membuat Super Admin tersebut.
+Seed juga membuat 5 produk demo (kode `DEMO-…`), target omzet bulan berjalan, dan stok pusat demo (Vitamin C sengaja kosong untuk mencoba permintaan belum terpenuhi). Menjalankan seed ulang akan mengembalikan kata sandi dan data demo. Untuk environment baru tanpa akun demo, isi `SEED_SUPER_ADMIN_NAME`, `SEED_SUPER_ADMIN_PHONE`, dan `SEED_SUPER_ADMIN_PASSWORD`. Dengan `NODE_ENV=production`, seed hanya membuat Super Admin tersebut.
 
 ## Testing
 
@@ -131,7 +132,7 @@ PATCH /api/pharmacies/:id            Super Admin
 PATCH /api/pharmacies/:id/status     Super Admin — ACTIVE/INACTIVE, akun kasir ikut
 GET   /api/placements                semua peran (sesuai batas akses)
 POST  /api/placements                Super Admin — maks. 3 apotek aktif per SPG
-POST  /api/placements/:id/end        Super Admin — { reason }
+POST  /api/placements/:id/end        Super Admin — { reason }; stok SPG di apotek itu harus 0 dan tidak ada order berjalan
 
 # Produk, target, pengaturan, riwayat, dashboard (Tahap 2)
 GET   /api/products                  semua peran (produk aktif; Admin/SA bisa includeInactive=true)
@@ -170,6 +171,23 @@ GET   /api/visit-plans/summary?weekStart=      Super Admin, Admin — ringkasan 
 PUT   /api/visit-plans/week/:weekStart         Team Leader — { days: [{ date, pharmacyIds }] }; terkunci Senin 00.00 WIB
 PUT   /api/visit-plans/items/:id/reason        Team Leader — { reason, evidenceFileId? } untuk apotek rencana yang tidak dikunjungi
 
+# Stok gudang, order & stok SPG (Tahap 5)
+GET   /api/warehouse/stock                     Super Admin, Admin, Team Leader, SPG — stok pusat per produk + jumlah dipesan
+GET   /api/warehouse/movements?productId=&type=&from=&to=   Super Admin, Admin — riwayat mutasi
+POST  /api/warehouse/inbound                   Admin — { date, poNumber?, note?, items: [{ productId, qty }] }
+POST  /api/warehouse/adjustments               Admin — { productId, qty (±), reason }
+POST  /api/orders                              SPG — { pharmacyId, note?, items: [{ productId, qty }] }; stok kurang → permintaan belum terpenuhi
+GET   /api/orders?status=&spgId=&pharmacyId=&openDiscrepancy=   sesuai batas akses; GET /api/orders/:id
+POST  /api/orders/:id/approve                  Super Admin — { items?: [{ itemId, qty }], note? }; jumlah ≤ diminta
+POST  /api/orders/:id/reject                   Super Admin — { reason }
+POST  /api/orders/:id/ship                     Admin — { items?: [{ itemId, qty }], note? }; ≤ disetujui dan ≤ stok pusat
+POST  /api/orders/:id/receive                  SPG pemesan — { items?: [{ itemId, qty }], note? }; catatan wajib bila selisih
+POST  /api/orders/:id/resolve-discrepancy      Admin — { note }
+GET   /api/orders/unfulfilled-recap?from=&to=  Super Admin, Admin — rekap permintaan belum terpenuhi (ORD-05)
+GET   /api/field-stock?holderId=&pharmacyId=   Super Admin, Admin, Team Leader (timnya), SPG (miliknya)
+GET   /api/field-stock/movements?holderId=&pharmacyId=&productId=   ledger stok SPG
+PUT   /api/field-stock/opening                 Admin — { spgId, pharmacyId, items: [{ productId, qty }] }; terkunci setelah ada transaksi lain
+
 # Berkas & notifikasi (Tahap 1)
 POST  /api/files/presign             { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
 POST  /api/files/:id/complete        verifikasi berkas sudah terunggah
@@ -189,6 +207,7 @@ Selama `mustChangePassword` aktif, semua endpoint kecuali `/auth/me`, `/auth/cha
 - Tanggal bisnis memakai WIB (`server/src/utils/time.ts`). Client juga menampilkan jam dalam WIB.
 - Halaman client ada di `client/src/features/<modul>/`, menu per peran di `client/src/routes/navigation.ts`.
 - Absen kunjungan Team Leader memakai tabel `Attendance` yang sama (pemeriksaan di `modules/attendance/attendance-checks.ts`); `LeaderVisit` menautkan absen masuk/keluar dan menyimpan durasi. Lokasi live web hanya berjalan saat aplikasi terbuka (`watchPosition` + Wake Lock, ping tiap 5 menit); titik lokasi tidak dicatat di riwayat.
+- Stok hanya berubah lewat `server/src/modules/stock/stock-ledger.ts`: saldo diubah atomik (pengurangan memakai `WHERE qty >= n`) dan setiap perubahan dicatat sebagai mutasi dengan saldo sesudahnya (`WarehouseMovement`, `FieldStockMovement`). Tabel mutasi dan `Approval` append-only; kolom `qty` stok dijaga `CHECK (qty >= 0)`.
 - Absen (`Attendance`) juga append-only di database. Absen web memakai kamera langsung + deteksi wajah/kedip MediaPipe; model `client/src/assets/models/face_landmarker.task` dan WASM-nya di-host sendiri (±7 MB setelah kompresi, diunduh sekali lalu di-cache). Deteksi lokasi palsu dan tracking latar belakang menyusul di aplikasi mobile (Tahap 10).
 
 ## Deployment

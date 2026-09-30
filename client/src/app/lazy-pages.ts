@@ -39,3 +39,16 @@ export const VisitEvaluationPage = lazy(() =>
   import("../features/visits/visit-evaluation-page").then((module) => ({ default: module.VisitEvaluationPage })),
 );
 export const LeaderMapPage = lazy(() => import("../features/visits/leader-map-page").then((module) => ({ default: module.LeaderMapPage })));
+
+// Tahap 5: stok gudang, order, stok SPG, persetujuan.
+export const OrderPage = lazy(() => import("../features/stock/order-page").then((module) => ({ default: module.OrderPage })));
+export const MyStockPage = lazy(() => import("../features/stock/my-stock-page").then((module) => ({ default: module.MyStockPage })));
+export const RequestsPage = lazy(() => import("../features/stock/requests-page").then((module) => ({ default: module.RequestsPage })));
+export const ApprovalsPage = lazy(() => import("../features/stock/approvals-page").then((module) => ({ default: module.ApprovalsPage })));
+export const WarehousePage = lazy(() => import("../features/stock/warehouse-page").then((module) => ({ default: module.WarehousePage })));
+export const IncomingOrdersPage = lazy(() =>
+  import("../features/stock/incoming-orders-page").then((module) => ({ default: module.IncomingOrdersPage })),
+);
+export const FieldStockPage = lazy(() =>
+  import("../features/stock/field-stock-page").then((module) => ({ default: module.FieldStockPage })),
+);

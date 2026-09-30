@@ -183,6 +183,84 @@ async function seedDemoMasterData(users: Map<string, { id: string }>) {
   console.log(`  Jadwal      SPG Demo, minggu ${thisWeek} dan berikutnya`);
 
   await seedDemoVisitPlans(leader.id, pharmacies);
+  await seedDemoStock(users.get("081200000002")!.id, spg.id, pharmacies);
+}
+
+/**
+ * Stok demo (Tahap 5): stok pusat (Vitamin C sengaja kosong untuk mencoba "permintaan belum
+ * terpenuhi"), stok awal SPG Demo di kedua apotek tugasnya, dan satu order menunggu persetujuan.
+ * Hanya dibuat bila belum ada, lewat mutasi ber-saldo supaya ledger tetap konsisten.
+ */
+async function seedDemoStock(adminId: string, spgId: string, pharmacies: Array<{ id: string }>) {
+  const [sehat, keluarga] = pharmacies;
+  const products = new Map(
+    (await prisma.product.findMany({ where: { code: { startsWith: "DEMO-" } }, select: { id: true, code: true } })).map((product) => [
+      product.code,
+      product.id,
+    ]),
+  );
+  const date = businessDate();
+
+  const warehouse: Array<[string, number]> = [
+    ["DEMO-MDU-250", 120],
+    ["DEMO-KYP-60", 80],
+    ["DEMO-VTC-10", 0],
+    ["DEMO-TLH-20", 40],
+    ["DEMO-MSK-50", 25],
+  ];
+  for (const [code, qty] of warehouse) {
+    const productId = products.get(code)!;
+    if (await prisma.warehouseStock.findUnique({ where: { productId } })) continue;
+    await prisma.warehouseStock.create({ data: { productId, qty } });
+    if (qty > 0) {
+      await prisma.warehouseMovement.create({
+        data: { productId, type: "INBOUND", qty, balanceAfter: qty, date, poNumber: "PO-DEMO-001", note: "Stok demo", createdById: adminId },
+      });
+    }
+  }
+  console.log("  Stok pusat  5 produk demo (Vitamin C kosong)");
+
+  const opening: Array<[string, string, number]> = [
+    [sehat.id, "DEMO-MDU-250", 12],
+    [sehat.id, "DEMO-KYP-60", 8],
+    [sehat.id, "DEMO-TLH-20", 5],
+    [keluarga.id, "DEMO-MDU-250", 6],
+    [keluarga.id, "DEMO-MSK-50", 4],
+  ];
+  for (const [pharmacyId, code, qty] of opening) {
+    const productId = products.get(code)!;
+    const key = { holderId_pharmacyId_productId: { holderId: spgId, pharmacyId, productId } };
+    if (await prisma.fieldStock.findUnique({ where: key })) continue;
+    await prisma.fieldStock.create({ data: { holderId: spgId, pharmacyId, productId, qty } });
+    await prisma.fieldStockMovement.create({
+      data: { holderId: spgId, pharmacyId, productId, type: "OPENING", qty, balanceAfter: qty, note: "Stok awal", createdById: adminId },
+    });
+  }
+  console.log("  Stok awal   SPG Demo di Apotek Demo Sehat dan Apotek Demo Keluarga");
+
+  if ((await prisma.order.count({ where: { spgId } })) === 0) {
+    const stockOf = async (code: string) => (await prisma.warehouseStock.findUnique({ where: { productId: products.get(code)! } }))?.qty ?? 0;
+    const items = [
+      { code: "DEMO-MDU-250", qty: 10 },
+      { code: "DEMO-VTC-10", qty: 6 },
+    ];
+    await prisma.order.create({
+      data: {
+        spgId,
+        pharmacyId: sehat.id,
+        note: "Stok madu menipis",
+        items: {
+          create: await Promise.all(
+            items.map(async (item) => {
+              const stock = await stockOf(item.code);
+              return { productId: products.get(item.code)!, requestedQty: item.qty, stockAtSubmit: stock, unfulfilledAtSubmit: stock < item.qty };
+            }),
+          ),
+        },
+      },
+    });
+    console.log("  Order       1 order SPG Demo menunggu persetujuan");
+  }
 }
 
 /**

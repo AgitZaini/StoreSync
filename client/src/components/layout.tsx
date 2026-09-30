@@ -167,7 +167,7 @@ export function Sidebar({
           ))}
         </nav>
 
-        <div className="space-y-1 px-4 pb-4">
+        <div className="space-y-1 border-t border-line px-4 pb-4 pt-3">
           {statusRows.map((row) => (
             <div
               key={row.label}

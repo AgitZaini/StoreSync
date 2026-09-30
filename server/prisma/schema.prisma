@@ -53,6 +53,44 @@ enum AttendanceExceptionStatus {
   REJECTED
 }
 
+enum WarehouseMovementType {
+  INBOUND
+  ORDER_SHIPPED
+  RETURN_RECEIVED
+  ADJUSTMENT
+}
+
+enum FieldStockMovementType {
+  OPENING
+  ORDER_RECEIVED
+  SALE_APPROVED
+  RETURN_RECEIVED
+  CORRECTION
+  HANDOVER_OUT
+  HANDOVER_IN
+}
+
+enum OrderStatus {
+  SUBMITTED
+  APPROVED
+  SHIPPED
+  RECEIVED
+  REJECTED
+}
+
+enum ApprovalEntity {
+  ORDER
+  SALES_REPORT
+  RETURN
+  LEAVE
+  MOU
+}
+
+enum ApprovalDecision {
+  APPROVED
+  REJECTED
+}
+
 enum PharmacyStatus {
   /// Calon mitra dari MOU (Tahap 8); belum punya akun kasir.
   PROSPECT
@@ -91,6 +129,14 @@ model User {
   leaderWorkDays       LeaderWorkDay[]
   locationPings        LocationPing[]
   visitPlans           VisitPlan[]
+  fieldStocks          FieldStock[]          @relation("FieldStockHolder")
+  fieldStockMovements  FieldStockMovement[]  @relation("FieldStockMovementHolder")
+  stockEntries         FieldStockMovement[]  @relation("FieldStockMovementCreator")
+  warehouseMovements   WarehouseMovement[]
+  orders               Order[]               @relation("OrderSpg")
+  shippedOrders        Order[]               @relation("OrderShipper")
+  resolvedOrders       Order[]               @relation("OrderDiscrepancyResolver")
+  approvals            Approval[]
 
   @@index([role, status])
   @@index([teamId])
@@ -160,6 +206,7 @@ model FileObject {
   attendance          Attendance?
   attendanceException AttendanceException?
   visitPlanItem       VisitPlanItem?
+  approval            Approval?
 
   @@index([uploadedById, createdAt])
 }
@@ -207,6 +254,9 @@ model Pharmacy {
   attendanceExceptions AttendanceException[]
   leaderVisits         LeaderVisit[]
   visitPlanItems       VisitPlanItem[]
+  fieldStocks          FieldStock[]
+  fieldStockMovements  FieldStockMovement[]
+  orders               Order[]
 
   @@index([status])
 }
@@ -237,6 +287,12 @@ model Product {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  warehouseStock      WarehouseStock?
+  warehouseMovements  WarehouseMovement[]
+  fieldStocks         FieldStock[]
+  fieldStockMovements FieldStockMovement[]
+  orderItems          OrderItem[]
 }
 
 /// Target omzet per SPG per bulan (AKN-04).
@@ -465,4 +521,164 @@ model VisitPlanItem {
   evidence FileObject? @relation(fields: [evidenceFileId], references: [id])
 
   @@index([planId, date])
+}
+
+/// Stok gudang pusat per produk (STK-01). Hanya diubah lewat `WarehouseMovement`.
+model WarehouseStock {
+  id        String   @id @default(uuid())
+  productId String   @unique
+  qty       Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id])
+}
+
+/// Riwayat mutasi stok pusat. Append-only (trigger di migrasi).
+model WarehouseMovement {
+  id           String                @id @default(uuid())
+  productId    String
+  type         WarehouseMovementType
+  /// Bertanda: positif masuk, negatif keluar.
+  qty          Int
+  balanceAfter Int
+  /// Tanggal bisnis kejadian (mis. tanggal barang masuk), YYYY-MM-DD.
+  date         String
+  poNumber     String?
+  /// Alasan penyesuaian atau catatan barang masuk.
+  note         String?
+  orderId      String?
+  createdById  String
+  createdAt    DateTime              @default(now())
+
+  product   Product @relation(fields: [productId], references: [id])
+  order     Order?  @relation(fields: [orderId], references: [id])
+  createdBy User    @relation(fields: [createdById], references: [id])
+
+  @@index([productId, createdAt])
+  @@index([type, createdAt])
+  @@index([orderId])
+}
+
+/// Sisa stok di lapangan per pemegang (SPG, atau TL sementara saat serah terima) per apotek per
+/// produk (AB-05, AB-15). Hanya diubah lewat `FieldStockMovement`.
+model FieldStock {
+  id         String   @id @default(uuid())
+  holderId   String
+  pharmacyId String
+  productId  String
+  qty        Int      @default(0)
+  updatedAt  DateTime @updatedAt
+
+  holder   User     @relation("FieldStockHolder", fields: [holderId], references: [id])
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id])
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@unique([holderId, pharmacyId, productId])
+  @@index([pharmacyId])
+}
+
+/// Ledger stok lapangan: stok awal + order diterima − penjualan disetujui − retur diterima (AB-05).
+/// Append-only (trigger di migrasi).
+model FieldStockMovement {
+  id           String                 @id @default(uuid())
+  holderId     String
+  pharmacyId   String
+  productId    String
+  type         FieldStockMovementType
+  /// Bertanda: positif menambah, negatif mengurangi.
+  qty          Int
+  balanceAfter Int
+  note         String?
+  orderId      String?
+  createdById  String
+  createdAt    DateTime               @default(now())
+
+  holder    User     @relation("FieldStockMovementHolder", fields: [holderId], references: [id])
+  pharmacy  Pharmacy @relation(fields: [pharmacyId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  order     Order?   @relation(fields: [orderId], references: [id])
+  createdBy User     @relation("FieldStockMovementCreator", fields: [createdById], references: [id])
+
+  @@index([holderId, pharmacyId, createdAt])
+  @@index([productId])
+  @@index([orderId])
+}
+
+/// Order barang SPG untuk apotek tugasnya (ORD-01…04): diajukan → disetujui SA → dikirim Admin → diterima SPG.
+model Order {
+  id                      String      @id @default(uuid())
+  /// Nomor urut untuk ditampilkan, mis. ORD-000123.
+  number                  Int         @unique @default(autoincrement())
+  spgId                   String
+  pharmacyId              String
+  status                  OrderStatus @default(SUBMITTED)
+  note                    String?
+  submittedAt             DateTime    @default(now())
+  decidedAt               DateTime?
+  rejectReason            String?
+  shippedAt               DateTime?
+  shippedById             String?
+  shipNote                String?
+  receivedAt              DateTime?
+  receiveNote             String?
+  /// Jumlah diterima berbeda dari yang dikirim (ORD-04); Admin diberi tahu.
+  hasDiscrepancy          Boolean     @default(false)
+  discrepancyResolvedAt   DateTime?
+  discrepancyResolvedById String?
+  discrepancyNote         String?
+  createdAt               DateTime    @default(now())
+  updatedAt               DateTime    @updatedAt
+
+  spg                   User                 @relation("OrderSpg", fields: [spgId], references: [id])
+  pharmacy              Pharmacy             @relation(fields: [pharmacyId], references: [id])
+  shippedBy             User?                @relation("OrderShipper", fields: [shippedById], references: [id])
+  discrepancyResolvedBy User?                @relation("OrderDiscrepancyResolver", fields: [discrepancyResolvedById], references: [id])
+  items                 OrderItem[]
+  warehouseMovements    WarehouseMovement[]
+  fieldStockMovements   FieldStockMovement[]
+
+  @@index([status, submittedAt])
+  @@index([spgId, submittedAt])
+  @@index([pharmacyId])
+}
+
+model OrderItem {
+  id                  String  @id @default(uuid())
+  orderId             String
+  productId           String
+  requestedQty        Int
+  /// Stok pusat saat order diajukan.
+  stockAtSubmit       Int
+  /// Stok pusat kurang dari jumlah diminta saat diajukan: "permintaan belum terpenuhi" (ORD-01, ORD-05).
+  unfulfilledAtSubmit Boolean
+  approvedQty         Int?
+  shippedQty          Int?
+  receivedQty         Int?
+
+  order   Order   @relation(fields: [orderId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([orderId, productId])
+  @@index([productId])
+}
+
+/// Keputusan persetujuan generik (order, laporan penjualan, retur, cuti, MOU). Append-only.
+model Approval {
+  id                 String           @id @default(uuid())
+  entityType         ApprovalEntity
+  entityId           String
+  /// Tahap persetujuan, mis. SUPER_ADMIN atau KASIR.
+  step               String
+  decision           ApprovalDecision
+  reason             String?
+  approverId         String
+  /// Diisi untuk persetujuan kasir apotek (Tahap 6).
+  cashierName        String?
+  cashierPhotoFileId String?          @unique
+  decidedAt          DateTime         @default(now())
+
+  approver     User        @relation(fields: [approverId], references: [id])
+  cashierPhoto FileObject? @relation(fields: [cashierPhotoFileId], references: [id])
+
+  @@index([entityType, entityId])
 }

@@ -8,14 +8,20 @@ import { ProfilePage } from "../features/profile/profile-page";
 import { RedirectIfAuthenticated, RequireAuth, RequireRole } from "../routes/guards";
 import { NotFoundPage } from "../routes/not-found-page";
 import {
+  ApprovalsPage,
   AttendanceMonitorPage,
   AttendancePage,
   AuditLogPage,
+  FieldStockPage,
+  IncomingOrdersPage,
   LeaderMapPage,
   MySchedulePage,
+  MyStockPage,
+  OrderPage,
   PharmaciesPage,
   PharmacyFormPage,
   ProductsPage,
+  RequestsPage,
   ScheduleWeekPage,
   SettingsPage,
   TeamPage,
@@ -24,6 +30,7 @@ import {
   VisitAttendancePage,
   VisitEvaluationPage,
   VisitPlanPage,
+  WarehousePage,
 } from "./lazy-pages";
 
 export const router = createBrowserRouter([
@@ -52,6 +59,7 @@ export const router = createBrowserRouter([
               { path: "/produk", element: <ProductsPage /> },
               { path: "/pengaturan", element: <SettingsPage /> },
               { path: "/riwayat", element: <AuditLogPage /> },
+              { path: "/persetujuan", element: <ApprovalsPage /> },
             ],
           },
           {
@@ -59,11 +67,17 @@ export const router = createBrowserRouter([
             children: [
               { path: "/absen", element: <AttendancePage /> },
               { path: "/jadwal-saya", element: <MySchedulePage /> },
+              { path: "/order", element: <OrderPage /> },
+              { path: "/stok-saya", element: <MyStockPage /> },
+              { path: "/riwayat-pengajuan", element: <RequestsPage /> },
             ],
           },
           {
             element: <RequireRole roles={["ADMIN"]} />,
-            children: [{ path: "/jadwal", element: <ScheduleWeekPage /> }],
+            children: [
+              { path: "/jadwal", element: <ScheduleWeekPage /> },
+              { path: "/order-masuk", element: <IncomingOrdersPage /> },
+            ],
           },
           {
             element: <RequireRole roles={["ADMIN", "SUPER_ADMIN"]} />,
@@ -71,6 +85,8 @@ export const router = createBrowserRouter([
               { path: "/pemantauan-absen", element: <AttendanceMonitorPage /> },
               { path: "/peta-leader", element: <LeaderMapPage /> },
               { path: "/evaluasi-kunjungan", element: <VisitEvaluationPage /> },
+              { path: "/stok-pusat", element: <WarehousePage /> },
+              { path: "/stok-spg", element: <FieldStockPage /> },
             ],
           },
           {

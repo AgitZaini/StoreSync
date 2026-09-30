@@ -38,6 +38,15 @@ export const actionLabels: Record<string, string> = {
   "visit_plan.update": "Menyusun rencana kunjungan",
   "visit_plan.update_after_lock": "Mengubah rencana kunjungan setelah terkunci",
   "visit_plan.miss_reason": "Mengisi alasan apotek tidak dikunjungi",
+  "warehouse.inbound": "Mencatat barang masuk gudang",
+  "warehouse.adjust": "Menyesuaikan stok pusat",
+  "order.submit": "Mengajukan order",
+  "order.approve": "Menyetujui order",
+  "order.reject": "Menolak order",
+  "order.ship": "Mengirim order",
+  "order.receive": "Menerima order",
+  "order.resolve_discrepancy": "Menindaklanjuti selisih order",
+  "field_stock.opening": "Mengisi stok awal SPG",
 };
 
 export const entityLabels: Record<string, string> = {
@@ -57,6 +66,9 @@ export const entityLabels: Record<string, string> = {
   LeaderWorkDay: "Hari kerja leader",
   VisitPlan: "Rencana kunjungan",
   VisitPlanItem: "Evaluasi kunjungan",
+  Order: "Order",
+  WarehouseStock: "Stok pusat",
+  FieldStock: "Stok SPG",
 };
 
 const fieldLabels: Record<string, string> = {
@@ -108,6 +120,13 @@ const fieldLabels: Record<string, string> = {
   maxAccuracyM: "Batas akurasi GPS (m)",
   lateToleranceMinutes: "Toleransi telat (menit)",
   leaderWorkEndTime: "Batas jam kerja leader",
+  productName: "Produk",
+  qty: "Jumlah",
+  items: "Item",
+  discrepancy: "Selisih",
+  poNumber: "Nomor PO",
+  reason: "Alasan",
+  note: "Catatan",
 };
 
 const FIELD_ORDER = Object.keys(fieldLabels);
@@ -158,6 +177,8 @@ export function auditChanges(before: Record<string, unknown> | null, after: Reco
 export function auditSubject(before: Record<string, unknown> | null, after: Record<string, unknown> | null) {
   const source = { ...before, ...after };
   if (typeof source.name === "string") return source.name;
+  if (typeof source.code === "string") return [source.code, source.pharmacyName].filter((part) => typeof part === "string").join(" · ");
+  if (typeof source.productName === "string") return source.productName;
   const pair = [source.spgName, source.pharmacyName].filter((part) => typeof part === "string");
   return pair.length > 0 ? pair.join(" · ") : null;
 }

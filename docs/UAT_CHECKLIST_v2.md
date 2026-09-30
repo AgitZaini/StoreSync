@@ -174,3 +174,45 @@ Sebelum uji di staging, jalankan `prisma migrate deploy` (migrasi `2026100100000
 - [ ] Beranda dan Absen Kunjungan TL mengingatkan jumlah apotek yang belum diberi alasan, dengan tautan ke minggu yang tepat.
 - [ ] Super Admin/Admin: menu Evaluasi Kunjungan menampilkan ringkasan semua TL per minggu (rencana, dikunjungi, tidak dikunjungi, tanpa alasan, di luar rencana, total durasi) dan rincian per hari untuk TL yang dipilih, termasuk alasan dan tautan bukti.
 - [ ] TL lain, SPG, dan Kasir tidak bisa membuka rencana/evaluasi TL lain (403) atau Peta Leader (menu tidak tampil, alamat langsung → "Halaman tidak ditemukan").
+
+## Tahap 5 — Stok gudang & order
+
+Jalankan `prisma migrate deploy` (migrasi `20261002000000_stock_orders`) lalu seed ulang. Seed mengisi stok pusat demo (Vitamin C kosong), stok awal SPG Demo, dan satu order menunggu persetujuan.
+
+### Stok pusat (STK-01) — Admin
+
+- [ ] Menu Stok Pusat menampilkan stok per produk, jumlah yang sudah dipesan tetapi belum dikirim, dan sisa setelah pesanan (merah bila kurang).
+- [ ] "Barang masuk": pilih tanggal (tidak bisa masa depan), nomor PO opsional, isi jumlah beberapa produk sekaligus → stok bertambah.
+- [ ] "Penyesuaian" wajib alasan; pengurangan melebihi stok ditolak.
+- [ ] Tab Mutasi menampilkan setiap barang masuk, kirim order, dan penyesuaian dengan saldo sesudahnya, PO/nomor order, dan pelaku; bisa difilter produk, jenis, dan tanggal.
+- [ ] Super Admin bisa membuka Stok Pusat tetapi tidak ada tombol Barang masuk/Penyesuaian.
+
+### Order (ORD-01…04)
+
+- [ ] SPG: menu Order Barang → "Buat order": pilih apotek tugas, stok pusat tiap produk terlihat, isi jumlah.
+- [ ] Jumlah melebihi stok pusat (mis. Vitamin C) tetap bisa dikirim dengan keterangan "permintaan belum terpenuhi"; Super Admin menerima notifikasi "Order baru".
+- [ ] Super Admin: menu Persetujuan → tab Order menampilkan order menunggu beserta stok pusat sekarang; jumlah disetujui bisa dikurangi (tidak bisa melebihi diminta), catatan opsional.
+- [ ] Tolak wajib beralasan; SPG melihat alasannya di order dan menerima notifikasi.
+- [ ] Setelah disetujui, SPG menerima notifikasi dan Admin menerima "Order siap dikirim".
+- [ ] Admin: menu Order Masuk → Siap dikirim; jumlah kirim bawaan = disetujui tetapi dibatasi stok pusat; "Tandai dikirim" mengurangi stok pusat. Kirim kurang dari disetujui tercatat sebagai kurang kirim.
+- [ ] SPG: order dikirim muncul di "Perlu konfirmasi terima"; jumlah diterima bawaan = dikirim. Bila berbeda, keterangan selisih wajib diisi.
+- [ ] Setelah diterima, Stok Saya bertambah sesuai jumlah diterima; bila ada selisih Admin menerima notifikasi "Selisih penerimaan order" dan order muncul di tab Selisih sampai ditandai ditindaklanjuti.
+- [ ] Jejak order (diajukan, disetujui/ditolak, dikirim, diterima, tindak lanjut) tampil lengkap dengan waktu, pelaku, dan catatan; semua tercatat di Riwayat.
+- [ ] SPG tidak bisa memesan untuk apotek yang bukan tugasnya; SPG lain tidak bisa melihat order ini; Team Leader melihat order SPG timnya.
+
+### Rekap permintaan (ORD-05)
+
+- [ ] Stok Pusat → tab Rekap permintaan per produk: stok pusat, order menunggu kirim, perlu dibeli (menunggu − stok), diminta saat stok kurang, dan kurang kirim pada rentang tanggal; order ditolak tidak dihitung.
+
+### Stok SPG & stok awal (AB-05)
+
+- [ ] SPG: menu Stok Saya menampilkan sisa stok per apotek tugas dan riwayat mutasinya (stok awal, order diterima) dengan saldo.
+- [ ] Admin: menu Stok SPG menampilkan setiap SPG per apotek, penanda "Stok awal belum diisi", dan filter "Hanya yang belum ada stok awal".
+- [ ] "Stok awal" menyimpan jumlah per produk (tercatat di riwayat, SPG diberi notifikasi) dan masih bisa diubah sampai ada order diterima; setelah itu tombolnya terkunci.
+- [ ] Super Admin bisa melihat Stok SPG tanpa tombol Stok awal; Team Leader melihat stok timnya di Tim Saya.
+- [ ] Melepas penempatan SPG yang masih memegang stok atau masih punya order berjalan ditolak dengan pesan jelas.
+
+### Beranda
+
+- [ ] Super Admin: kartu "Order & stok pusat" (menunggu persetujuan, siap dikirim, selisih terima, produk habis). Admin: siap dikirim, dalam pengiriman, selisih terima.
+- [ ] SPG: kartu "Stok & order" (stok per apotek, order yang perlu dikonfirmasi).
