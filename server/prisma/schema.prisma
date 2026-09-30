@@ -78,6 +78,20 @@ enum OrderStatus {
   REJECTED
 }
 
+enum SalesReportStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum ReturnStatus {
+  SUBMITTED
+  KASIR_APPROVED
+  SA_APPROVED
+  RECEIVED
+  REJECTED
+}
+
 enum ApprovalEntity {
   ORDER
   SALES_REPORT
@@ -137,6 +151,9 @@ model User {
   shippedOrders        Order[]               @relation("OrderShipper")
   resolvedOrders       Order[]               @relation("OrderDiscrepancyResolver")
   approvals            Approval[]
+  salesReports         SalesReport[]
+  returns              Return[]              @relation("ReturnSpg")
+  receivedReturns      Return[]              @relation("ReturnReceiver")
 
   @@index([role, status])
   @@index([teamId])
@@ -207,6 +224,7 @@ model FileObject {
   attendanceException AttendanceException?
   visitPlanItem       VisitPlanItem?
   approval            Approval?
+  returnRecord        Return?
 
   @@index([uploadedById, createdAt])
 }
@@ -257,6 +275,8 @@ model Pharmacy {
   fieldStocks          FieldStock[]
   fieldStockMovements  FieldStockMovement[]
   orders               Order[]
+  salesReports         SalesReport[]
+  returns              Return[]
 
   @@index([status])
 }
@@ -293,6 +313,8 @@ model Product {
   fieldStocks         FieldStock[]
   fieldStockMovements FieldStockMovement[]
   orderItems          OrderItem[]
+  salesReportItems    SalesReportItem[]
+  returnItems         ReturnItem[]
 }
 
 /// Target omzet per SPG per bulan (AKN-04).
@@ -547,16 +569,19 @@ model WarehouseMovement {
   /// Alasan penyesuaian atau catatan barang masuk.
   note         String?
   orderId      String?
+  returnId     String?
   createdById  String
   createdAt    DateTime              @default(now())
 
   product   Product @relation(fields: [productId], references: [id])
   order     Order?  @relation(fields: [orderId], references: [id])
+  return    Return? @relation(fields: [returnId], references: [id])
   createdBy User    @relation(fields: [createdById], references: [id])
 
   @@index([productId, createdAt])
   @@index([type, createdAt])
   @@index([orderId])
+  @@index([returnId])
 }
 
 /// Sisa stok di lapangan per pemegang (SPG, atau TL sementara saat serah terima) per apotek per
@@ -580,28 +605,34 @@ model FieldStock {
 /// Ledger stok lapangan: stok awal + order diterima − penjualan disetujui − retur diterima (AB-05).
 /// Append-only (trigger di migrasi).
 model FieldStockMovement {
-  id           String                 @id @default(uuid())
-  holderId     String
-  pharmacyId   String
-  productId    String
-  type         FieldStockMovementType
+  id            String                 @id @default(uuid())
+  holderId      String
+  pharmacyId    String
+  productId     String
+  type          FieldStockMovementType
   /// Bertanda: positif menambah, negatif mengurangi.
-  qty          Int
-  balanceAfter Int
-  note         String?
-  orderId      String?
-  createdById  String
-  createdAt    DateTime               @default(now())
+  qty           Int
+  balanceAfter  Int
+  note          String?
+  orderId       String?
+  salesReportId String?
+  returnId      String?
+  createdById   String
+  createdAt     DateTime               @default(now())
 
-  holder    User     @relation("FieldStockMovementHolder", fields: [holderId], references: [id])
-  pharmacy  Pharmacy @relation(fields: [pharmacyId], references: [id])
-  product   Product  @relation(fields: [productId], references: [id])
-  order     Order?   @relation(fields: [orderId], references: [id])
-  createdBy User     @relation("FieldStockMovementCreator", fields: [createdById], references: [id])
+  holder      User         @relation("FieldStockMovementHolder", fields: [holderId], references: [id])
+  pharmacy    Pharmacy     @relation(fields: [pharmacyId], references: [id])
+  product     Product      @relation(fields: [productId], references: [id])
+  order       Order?       @relation(fields: [orderId], references: [id])
+  salesReport SalesReport? @relation(fields: [salesReportId], references: [id])
+  return      Return?      @relation(fields: [returnId], references: [id])
+  createdBy   User         @relation("FieldStockMovementCreator", fields: [createdById], references: [id])
 
   @@index([holderId, pharmacyId, createdAt])
   @@index([productId])
   @@index([orderId])
+  @@index([salesReportId])
+  @@index([returnId])
 }
 
 /// Order barang SPG untuk apotek tugasnya (ORD-01…04): diajukan → disetujui SA → dikirim Admin → diterima SPG.
@@ -675,10 +706,110 @@ model Approval {
   /// Diisi untuk persetujuan kasir apotek (Tahap 6).
   cashierName        String?
   cashierPhotoFileId String?          @unique
+  /// Hasil deteksi wajah di perangkat saat foto kasir diambil.
+  cashierFaceCheck   Json?
   decidedAt          DateTime         @default(now())
 
   approver     User        @relation(fields: [approverId], references: [id])
   cashierPhoto FileObject? @relation(fields: [cashierPhotoFileId], references: [id])
 
   @@index([entityType, entityId])
+}
+
+/// Laporan penjualan harian SPG per apotek (JUL-01). Dihitung sebagai omzet setelah disetujui kasir (AB-06).
+model SalesReport {
+  id           String            @id @default(uuid())
+  /// Nomor urut untuk ditampilkan, mis. LAP-000123.
+  number       Int               @unique @default(autoincrement())
+  spgId        String
+  pharmacyId   String
+  /// Tanggal penjualan (WIB), YYYY-MM-DD.
+  reportDate   String
+  status       SalesReportStatus @default(SUBMITTED)
+  totalAmount  Decimal           @db.Decimal(14, 2)
+  /// Bertambah setiap SPG mengubah/mengirim ulang laporan; kasir menyetujui revisi yang ia lihat.
+  revision     Int               @default(1)
+  note         String?
+  submittedAt  DateTime
+  decidedAt    DateTime?
+  rejectReason String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  spg                 User                 @relation(fields: [spgId], references: [id])
+  pharmacy            Pharmacy             @relation(fields: [pharmacyId], references: [id])
+  items               SalesReportItem[]
+  fieldStockMovements FieldStockMovement[]
+
+  @@unique([spgId, pharmacyId, reportDate])
+  @@index([pharmacyId, status])
+  @@index([status, submittedAt])
+  @@index([reportDate])
+}
+
+model SalesReportItem {
+  id        String  @id @default(uuid())
+  reportId  String
+  productId String
+  qty       Int
+  /// Harga produk saat laporan dikirim.
+  unitPrice Decimal @db.Decimal(14, 2)
+  subtotal  Decimal @db.Decimal(14, 2)
+
+  report  SalesReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  product Product     @relation(fields: [productId], references: [id])
+
+  @@unique([reportId, productId])
+  @@index([productId])
+}
+
+/// Retur barang dari apotek ke gudang pusat (RTR-01…04, AB-08): SPG → kasir → Super Admin → Admin terima.
+model Return {
+  id             String       @id @default(uuid())
+  /// Nomor urut untuk ditampilkan, mis. RTR-000123.
+  number         Int          @unique @default(autoincrement())
+  spgId          String
+  pharmacyId     String
+  status         ReturnStatus @default(SUBMITTED)
+  reason         String
+  photoFileId    String?      @unique
+  submittedAt    DateTime     @default(now())
+  kasirDecidedAt DateTime?
+  saDecidedAt    DateTime?
+  rejectReason   String?
+  /// Tahap yang menolak: KASIR atau SUPER_ADMIN.
+  rejectedStep   String?
+  receivedAt     DateTime?
+  receivedById   String?
+  receiveNote    String?
+  /// Jumlah diterima gudang berbeda dari yang disetujui (RTR-04).
+  hasDiscrepancy Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  spg                 User                 @relation("ReturnSpg", fields: [spgId], references: [id])
+  pharmacy            Pharmacy             @relation(fields: [pharmacyId], references: [id])
+  photo               FileObject?          @relation(fields: [photoFileId], references: [id])
+  receivedBy          User?                @relation("ReturnReceiver", fields: [receivedById], references: [id])
+  items               ReturnItem[]
+  warehouseMovements  WarehouseMovement[]
+  fieldStockMovements FieldStockMovement[]
+
+  @@index([status, submittedAt])
+  @@index([spgId, submittedAt])
+  @@index([pharmacyId, status])
+}
+
+model ReturnItem {
+  id          String @id @default(uuid())
+  returnId    String
+  productId   String
+  qty         Int
+  receivedQty Int?
+
+  return  Return  @relation(fields: [returnId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+
+  @@unique([returnId, productId])
+  @@index([productId])
 }

@@ -12,7 +12,7 @@ import type { PresignFileInput } from "./file.schemas";
 
 const FILE_NOT_FOUND = "Berkas tidak ditemukan";
 
-/** Pengunggah, Admin, dan Super Admin selalu boleh; Team Leader boleh melihat berkas anggota timnya. */
+/** Pengunggah, Admin, dan Super Admin selalu boleh; Team Leader boleh melihat berkas anggota timnya; Kasir foto retur apoteknya. */
 const canAccessFile = async (actor: AuditActor, file: FileObject) => {
   if (file.uploadedById === actor.id || actor.role === UserRole.SUPER_ADMIN || actor.role === UserRole.ADMIN) {
     return true;
@@ -21,6 +21,12 @@ const canAccessFile = async (actor: AuditActor, file: FileObject) => {
   if (actor.role === UserRole.TEAM_LEADER) {
     const scope = await scopeFor(actor);
     return scope.kind === "team" && scope.spgIds.includes(file.uploadedById);
+  }
+
+  // Kasir melihat foto barang pada retur yang keluar dari apoteknya (RTR-02).
+  if (actor.role === UserRole.KASIR) {
+    const linked = await prisma.return.count({ where: { photoFileId: file.id, pharmacy: { kasirUserId: actor.id } } });
+    return linked > 0;
   }
 
   return false;

@@ -23,6 +23,7 @@ export const applyWarehouseDelta = async (
     poNumber?: string | null;
     note?: string | null;
     orderId?: string | null;
+    returnId?: string | null;
   },
 ) => {
   let rows: QtyRow[];
@@ -61,6 +62,7 @@ export const applyWarehouseDelta = async (
       poNumber: input.poNumber ?? null,
       note: input.note ?? null,
       orderId: input.orderId ?? null,
+      returnId: input.returnId ?? null,
       createdById: input.actorId,
     },
     select: { id: true, qty: true, balanceAfter: true },
@@ -81,6 +83,8 @@ export const applyFieldStockDelta = async (
     actorId: string;
     note?: string | null;
     orderId?: string | null;
+    salesReportId?: string | null;
+    returnId?: string | null;
   },
 ) => {
   let rows: QtyRow[];
@@ -114,11 +118,15 @@ export const applyFieldStockDelta = async (
       balanceAfter: rows[0].qty,
       note: input.note ?? null,
       orderId: input.orderId ?? null,
+      salesReportId: input.salesReportId ?? null,
+      returnId: input.returnId ?? null,
       createdById: input.actorId,
     },
     select: { id: true, qty: true, balanceAfter: true },
   });
 };
 
-/** Nomor order untuk ditampilkan, mis. ORD-000123. */
+/** Nomor dokumen untuk ditampilkan, mis. ORD-000123, LAP-000045, RTR-000007. */
 export const orderCode = (number: number) => `ORD-${String(number).padStart(6, "0")}`;
+export const salesReportCode = (number: number) => `LAP-${String(number).padStart(6, "0")}`;
+export const returnCode = (number: number) => `RTR-${String(number).padStart(6, "0")}`;

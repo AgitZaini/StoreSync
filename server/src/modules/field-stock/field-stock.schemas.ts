@@ -12,6 +12,13 @@ export const fieldMovementsQuerySchema = z.object({
   productId: idSchema.optional(),
 });
 
+export const availableStockQuerySchema = z.object({
+  pharmacyId: idSchema,
+  /** Saat mengubah laporan/retur, jumlah dokumen itu sendiri tidak ikut dikurangkan. */
+  excludeSalesReportId: idSchema.optional(),
+  excludeReturnId: idSchema.optional(),
+});
+
 export const openingStockSchema = z.object({
   spgId: idSchema,
   pharmacyId: idSchema,
@@ -26,3 +33,4 @@ export const openingStockSchema = z.object({
 export type FieldStockQuery = z.infer<typeof fieldStockQuerySchema>;
 export type FieldMovementsQuery = z.infer<typeof fieldMovementsQuerySchema>;
 export type OpeningStockInput = z.infer<typeof openingStockSchema>;
+export type AvailableStockQuery = z.infer<typeof availableStockQuerySchema>;

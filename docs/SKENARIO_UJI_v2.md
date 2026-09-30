@@ -1,6 +1,6 @@
-# Skenario Uji dari Nol — StoreSync v2 (Tahap 1–5)
+# Skenario Uji dari Nol — StoreSync v2 (Tahap 1–6)
 
-Satu alur cerita dari database kosong sampai semua fitur Tahap 1–5 tercoba, dijalankan di laptop. Perkiraan waktu 60–90 menit. Kasus tepi (validasi, batas akses) ada di [Checklist UAT v2](UAT_CHECKLIST_v2.md); skenario ini fokus ke alur utama antarperan.
+Satu alur cerita dari database kosong sampai semua fitur Tahap 1–6 tercoba, dijalankan di laptop. Perkiraan waktu 90–120 menit. Kasus tepi (validasi, batas akses) ada di [Checklist UAT v2](UAT_CHECKLIST_v2.md); skenario ini fokus ke alur utama antarperan.
 
 Setiap langkah punya **Harapan** berupa kotak centang. Bila hasilnya berbeda, catat nomor langkah, peran, dan screenshot, lalu lihat terminal server untuk pesan error.
 
@@ -45,12 +45,12 @@ Sesi login disimpan per browser, jadi satu jendela = satu peran:
 | Jendela | Browser | Dipakai untuk |
 | --- | --- | --- |
 | **A** | Chrome biasa | Super Admin (bagian 1), lalu SPG, lalu Team Leader. Semua yang butuh kamera/lokasi dikerjakan di sini. |
-| **B** | Chrome Incognito | Admin |
+| **B** | Chrome Incognito | Admin, dan Kasir Apotek Uji Rumah di bagian 10 (butuh kamera) |
 | **C** | Safari | Super Admin (mulai bagian 4) |
 
 Semua jendela membuka `http://localhost:3000`. Izinkan Chrome memakai lokasi dan kamera: **System Settings → Privacy & Security → Location Services → Google Chrome** (nyalakan), dan **Camera → Google Chrome** (nyalakan).
 
-Akun demo (sandi `Password123!`): Super Admin `0812-0000-0001`, Admin `0812-0000-0002`, Team Leader `0812-0000-0003`, SPG Demo `0812-0000-0004`.
+Akun demo (sandi `Password123!`): Super Admin `0812-0000-0001`, Admin `0812-0000-0002`, Team Leader `0812-0000-0003`, SPG Demo `0812-0000-0004`. Izinkan juga kamera untuk jendela Incognito saat diminta (kasir di bagian 10).
 
 ---
 
@@ -69,7 +69,7 @@ Akun demo (sandi `Password123!`): Super Admin `0812-0000-0001`, Admin `0812-0000
 2. Nama `Apotek Uji Rumah`, alamat bebas, klik **Lokasi saya** (izinkan lokasi), Radius absen `100`, jam buka `07:00`–`23:00`.
 3. Nomor HP login kasir `0812-9999-0001`, kata sandi sementara biarkan yang dibuat otomatis. Klik **Daftarkan apotek**.
 - [ ] Peta menampilkan titik dan lingkaran radius di posisi Anda.
-- [ ] Setelah disimpan muncul ringkasan akun kasir (nomor HP + sandi sementara).
+- [ ] Setelah disimpan muncul ringkasan akun kasir (nomor HP + sandi sementara). **Catat sandi kasir** (dipakai di bagian 10).
 
 ### 1.4 Buat akun SPG baru
 1. Menu **Pengguna & Penempatan** → **Tambah pengguna**: Nama `SPG Uji`, Nomor HP `0812-9999-0002`, Peran **SPG**, Tim **Tim Demo Jakarta**. **Buat akun**.
@@ -273,12 +273,66 @@ Akun demo (sandi `Password123!`): Super Admin `0812-0000-0001`, Admin `0812-0000
 
 ---
 
-## 10. Tampilan HP (tanpa HP)
+## 10. Penjualan, persetujuan kasir, dan retur (Tahap 6)
+
+### 10.1 SPG membuat laporan penjualan — Jendela A
+1. **Keluar** dari Team Leader, login SPG Uji (`0812-9999-0002`, sandi baru dari 3.1).
+2. Menu **Laporan Penjualan** → Apotek Uji Rumah, Hari ini.
+- [ ] Sirup Uji "Tersedia 14 botol · Rp 25.000".
+3. Isi Sirup Uji `15`.
+- [ ] Angka merah, pesan "Jumlah melebihi stok tersedia", tombol kirim nonaktif.
+4. Ubah ke `3` → **Kirim ke kasir**.
+- [ ] Total Rp 75.000; laporan berstatus "Menunggu kasir".
+
+### 10.2 Kasir login pertama dan menolak — Jendela B
+1. **Keluar** dari Admin, login `0812-9999-0001` dengan sandi sementara kasir dari 1.3, lalu buat sandi baru.
+- [ ] Beranda kasir: "Menunggu persetujuan Anda" 1 laporan penjualan.
+2. **Periksa sekarang** → laporan SPG Uji → **Tolak**.
+3. Nama kasir `Rina` → **Ambil foto wajah** (kamera laptop, kedipkan mata) → **Gunakan foto** → alasan `Yang terjual 2 botol` → **Tolak**.
+- [ ] Laporan hilang dari daftar tunggu.
+
+### 10.3 SPG memperbaiki — Jendela A
+1. Muat ulang Laporan Penjualan.
+- [ ] Tampil "Ditolak kasir: Yang terjual 2 botol", lengkap dengan nama kasir Rina.
+2. Ubah Sirup Uji jadi `2` → **Kirim ulang ke kasir**.
+- [ ] Judul menjadi "revisi 2", status "Menunggu kasir".
+
+### 10.4 Kasir menyetujui — Jendela B
+1. Laporan revisi 2 → **Setujui**.
+- [ ] Nama "Rina" sudah terisi otomatis.
+2. Ambil foto wajah → **Setujui**.
+- [ ] Menu **Riwayat Persetujuan** menampilkan penolakan dan persetujuan, masing-masing dengan foto Anda.
+
+### 10.5 Dampak ke stok dan omzet — Jendela A
+1. **Beranda** dan **Stok Saya**.
+- [ ] Omzet bulan ini Rp 50.000 dari target Rp 5.000.000 (1%).
+- [ ] Stok Sirup Uji 12; riwayat "Penjualan disetujui −2" dengan nomor laporan.
+- [ ] Laporan tidak bisa diubah lagi ("sudah disetujui … AB-06").
+
+### 10.6 Retur — SPG, Kasir, Super Admin, Admin
+1. Jendela A: menu **Retur** → **Ajukan retur**: Sirup Uji `1`, alasan `Segel kemasan rusak`, **Foto barang** (pilih gambar apa saja) → Ajukan.
+- [ ] Retur berstatus "Menunggu kasir".
+2. Jendela B (kasir): tab **Retur** → foto barang terlihat → **Setujui** (nama + foto wajah).
+3. Jendela C (Super Admin): lonceng "Retur menunggu persetujuan" → **Persetujuan** → tab **Retur** → **Setujui**.
+- [ ] Kartu retur menampilkan foto barang dan foto kasir Rina.
+4. Jendela B: **Keluar** dari kasir, login **Admin** → menu **Retur Masuk** → Siap diterima: isi diterima `1` → **Konfirmasi diterima gudang**.
+- [ ] Stok Pusat Sirup Uji bertambah 1 (tab Mutasi: "Retur diterima"); Stok Saya SPG Uji menjadi 11.
+- [ ] Sebelum konfirmasi, coba ubah jumlah diterima jadi `0`: tombol konfirmasi nonaktif sampai keterangan selisih diisi. Kembalikan ke `1` sebelum konfirmasi.
+
+### 10.7 Pantauan — Admin dan Super Admin
+1. Jendela B: menu **Laporan Tertunda** → pilih "semua".
+- [ ] Tidak ada laporan SPG Uji (sudah disetujui); laporan demo lain yang masih menunggu tampil dengan tautan WhatsApp kasirnya.
+2. Jendela C: **Riwayat** → filter **Laporan penjualan**, lalu **Retur**.
+- [ ] Tercatat: kirim, ditolak kasir (nama kasir), perbaikan, disetujui; retur diajukan, disetujui kasir, disetujui Super Admin, diterima gudang.
+
+---
+
+## 11. Tampilan HP (tanpa HP)
 
 Kamera dan GPS di HP sungguhan butuh HTTPS, jadi untuk sekarang cek tampilannya di Chrome:
 
 1. Jendela A → **View → Developer → Developer Tools** → ikon HP (**Toggle device toolbar**, ⌘⇧M) → pilih ukuran 375 px (mis. iPhone SE) → muat ulang.
-2. Buka Beranda, Absen Kunjungan, Rencana Kunjungan (dan sebagai SPG: Absen, Order Barang, Stok Saya).
+2. Buka Beranda, Absen Kunjungan, Rencana Kunjungan (sebagai SPG: Absen, Laporan Penjualan, Order Barang, Stok Saya; sebagai kasir: Menunggu Persetujuan).
 - [ ] Navigasi bawah tampil, tidak ada geser ke samping, dialog muncul dari bawah layar.
 
 ---

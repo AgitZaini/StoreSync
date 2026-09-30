@@ -216,3 +216,47 @@ Jalankan `prisma migrate deploy` (migrasi `20261002000000_stock_orders`) lalu se
 
 - [ ] Super Admin: kartu "Order & stok pusat" (menunggu persetujuan, siap dikirim, selisih terima, produk habis). Admin: siap dikirim, dalam pengiriman, selisih terima.
 - [ ] SPG: kartu "Stok & order" (stok per apotek, order yang perlu dikonfirmasi).
+
+## Tahap 6 — Laporan penjualan, persetujuan kasir & retur
+
+Jalankan `prisma migrate deploy` (migrasi `20261003000000_sales_returns`) lalu seed ulang. Seed membuat laporan penjualan SPG Demo hari ini (menunggu kasir Apotek Demo Sehat, `0812-0000-0005`) dan satu retur (menunggu kasir Apotek Demo Keluarga, `0812-0000-0011`). Uji kasir dari HP lewat HTTPS supaya kamera depan terbuka.
+
+### Laporan penjualan (JUL-01, JUL-04) — SPG
+
+- [ ] Menu Laporan Penjualan: pilih apotek tugas dan tanggal (hari ini atau kemarin); setiap produk menampilkan stok tersedia dan harga; total omzet terhitung otomatis.
+- [ ] Jumlah di atas stok tersedia langsung merah dan tombol kirim nonaktif; stok yang tertahan laporan lain atau retur berjalan ikut diperhitungkan.
+- [ ] Laporan kedua untuk apotek dan tanggal yang sama tidak bisa dibuat (yang ada bisa diubah selama menunggu kasir).
+- [ ] Kasir menerima notifikasi "Laporan penjualan menunggu persetujuan".
+- [ ] Setelah disetujui: stok SPG berkurang, omzet bulan ini bertambah di Beranda, laporan tidak bisa diubah lagi.
+
+### Persetujuan kasir (JUL-03, RTR-02, AB-07) — Kasir Apotek
+
+- [ ] Beranda kasir menampilkan jumlah laporan dan retur yang menunggu; menu Menunggu Persetujuan hanya berisi dokumen apotek sendiri.
+- [ ] Setujui/Tolak meminta nama kasir dan foto wajah dari kamera depan (dengan deteksi kedip; bila gagal 30 detik, "Ambil foto tanpa deteksi kedip"); nama terakhir diingat di perangkat.
+- [ ] Menolak wajib beralasan; SPG menerima notifikasi berisi alasan dan nama kasir.
+- [ ] Bila SPG mengubah laporan saat kasir sedang memeriksa, persetujuan ditolak dengan pesan "Laporan baru saja diubah SPG".
+- [ ] Riwayat Persetujuan menampilkan keputusan apotek ini dengan nama dan foto kasir.
+
+### Perbaikan setelah ditolak — SPG
+
+- [ ] Laporan yang ditolak menampilkan alasan kasir; SPG mengubah jumlah lalu "Kirim ulang ke kasir" (revisi bertambah, riwayat penolakan tetap tampil).
+
+### Laporan tertunda (JUL-05) — Admin
+
+- [ ] Menu Laporan Tertunda menampilkan laporan yang belum diputuskan lebih dari 1/2/3 hari (atau semua), lama menunggu, dan nomor kasir dengan tautan WhatsApp.
+- [ ] Beranda Admin/Super Admin menampilkan kartu Penjualan (omzet disetujui vs target, menunggu kasir, tertunda > 1 hari).
+
+### Retur (RTR-01…04)
+
+- [ ] SPG: menu Retur → Ajukan retur: produk dengan stok tersedia, alasan wajib, foto barang opsional; jumlah melebihi stok ditolak.
+- [ ] Kasir menyetujui/menolak dengan nama + foto; bila disetujui, Super Admin menerima notifikasi.
+- [ ] Super Admin: Persetujuan → tab Retur menampilkan retur yang sudah disetujui kasir (dengan foto kasir dan foto barang); setujui atau tolak dengan alasan.
+- [ ] Admin: menu Retur Masuk → Siap diterima; isi jumlah yang datang. Bila berbeda, keterangan wajib, retur ditandai "Ada selisih", dan Super Admin menerima notifikasi "Selisih retur".
+- [ ] Setelah diterima: stok SPG berkurang sejumlah yang disetujui, stok pusat bertambah sejumlah yang diterima (terlihat di Stok Pusat → Mutasi "Retur diterima").
+- [ ] Riwayat Pengajuan SPG punya tab Order, Retur, dan Laporan penjualan.
+
+### Lain-lain
+
+- [ ] Team Leader: Tim Saya menampilkan omzet tim per SPG vs target dan laporan yang menunggu kasir.
+- [ ] Melepas penempatan SPG yang masih punya laporan menunggu kasir atau retur berjalan ditolak.
+- [ ] Riwayat (Super Admin) memuat semua langkah laporan penjualan dan retur.

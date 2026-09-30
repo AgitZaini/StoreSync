@@ -47,6 +47,16 @@ export const actionLabels: Record<string, string> = {
   "order.receive": "Menerima order",
   "order.resolve_discrepancy": "Menindaklanjuti selisih order",
   "field_stock.opening": "Mengisi stok awal SPG",
+  "sales_report.submit": "Mengirim laporan penjualan",
+  "sales_report.resubmit": "Memperbaiki laporan penjualan",
+  "sales_report.approve": "Kasir menyetujui laporan penjualan",
+  "sales_report.reject": "Kasir menolak laporan penjualan",
+  "return.submit": "Mengajukan retur",
+  "return.kasir_approve": "Kasir menyetujui retur",
+  "return.kasir_reject": "Kasir menolak retur",
+  "return.sa_approve": "Menyetujui retur",
+  "return.sa_reject": "Menolak retur",
+  "return.receive": "Menerima retur di gudang",
 };
 
 export const entityLabels: Record<string, string> = {
@@ -69,6 +79,8 @@ export const entityLabels: Record<string, string> = {
   Order: "Order",
   WarehouseStock: "Stok pusat",
   FieldStock: "Stok SPG",
+  SalesReport: "Laporan penjualan",
+  Return: "Retur",
 };
 
 const fieldLabels: Record<string, string> = {
@@ -127,10 +139,14 @@ const fieldLabels: Record<string, string> = {
   poNumber: "Nomor PO",
   reason: "Alasan",
   note: "Catatan",
+  reportDate: "Tanggal penjualan",
+  totalAmount: "Total omzet",
+  revision: "Revisi",
+  cashierName: "Nama kasir",
 };
 
 const FIELD_ORDER = Object.keys(fieldLabels);
-const MONEY_FIELDS = new Set(["price", "amount", "amountPerDay"]);
+const MONEY_FIELDS = new Set(["price", "amount", "amountPerDay", "totalAmount"]);
 const HIDDEN_FIELDS = new Set(["id", "createdAt", "updatedAt", "lastLoginAt"]);
 const STATUS_LABELS: Record<string, string> = {
   ACTIVE: "Aktif",

@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { PharmacyStatus, PrismaClient, UserRole, UserStatus } from "@prisma/client";
+import { PharmacyStatus, Prisma, PrismaClient, UserRole, UserStatus } from "@prisma/client";
 import { hashPassword } from "../src/utils/password";
 import { normalizePhone } from "../src/utils/phone";
 import { addBusinessDays, businessDate, mondayOf, startOfBusinessDay, weekDates } from "../src/utils/time";
@@ -260,6 +260,53 @@ async function seedDemoStock(adminId: string, spgId: string, pharmacies: Array<{
       },
     });
     console.log("  Order       1 order SPG Demo menunggu persetujuan");
+  }
+
+  await seedDemoSalesAndReturns(spgId, sehat.id, keluarga.id, products);
+}
+
+/**
+ * Tahap 6: satu laporan penjualan hari ini menunggu kasir Apotek Demo Sehat (0812-0000-0005) dan satu
+ * retur menunggu kasir Apotek Demo Keluarga (0812-0000-0011). Jumlahnya di bawah stok awal demo.
+ */
+async function seedDemoSalesAndReturns(spgId: string, sehatId: string, keluargaId: string, products: Map<string, string>) {
+  const reportDate = businessDate();
+  const existingReport = await prisma.salesReport.findUnique({ where: { spgId_pharmacyId_reportDate: { spgId, pharmacyId: sehatId, reportDate } } });
+
+  if (!existingReport) {
+    const lines = [
+      { code: "DEMO-MDU-250", qty: 2 },
+      { code: "DEMO-KYP-60", qty: 1 },
+    ];
+    const priced = await Promise.all(
+      lines.map(async (line) => {
+        const product = await prisma.product.findUniqueOrThrow({ where: { id: products.get(line.code)! }, select: { id: true, price: true } });
+        return { productId: product.id, qty: line.qty, unitPrice: product.price, subtotal: product.price.mul(line.qty) };
+      }),
+    );
+    await prisma.salesReport.create({
+      data: {
+        spgId,
+        pharmacyId: sehatId,
+        reportDate,
+        submittedAt: new Date(),
+        totalAmount: priced.reduce((sum, line) => sum.add(line.subtotal), new Prisma.Decimal(0)),
+        items: { create: priced },
+      },
+    });
+    console.log("  Penjualan   laporan SPG Demo hari ini menunggu kasir Apotek Demo Sehat");
+  }
+
+  if ((await prisma.return.count({ where: { spgId } })) === 0) {
+    await prisma.return.create({
+      data: {
+        spgId,
+        pharmacyId: keluargaId,
+        reason: "Kemasan penyok saat dipajang",
+        items: { create: [{ productId: products.get("DEMO-MSK-50")!, qty: 1 }] },
+      },
+    });
+    console.log("  Retur       1 retur SPG Demo menunggu kasir Apotek Demo Keluarga");
   }
 }
 

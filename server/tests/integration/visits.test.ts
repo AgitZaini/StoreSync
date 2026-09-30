@@ -29,6 +29,8 @@ beforeEach(async () => {
   leaderToken = (await login("081100000003")).accessToken;
   pharmacyA = await createPharmacy(superAdminToken, { name: "Apotek Kunjungan A", ...POINT_A });
   pharmacyB = await createPharmacy(superAdminToken, { name: "Apotek Kunjungan B", ...POINT_B });
+  // Batas jam kerja bawaan 21:00 membuat sesi kerja "selesai" bila test dijalankan malam hari.
+  await prisma.setting.create({ data: { key: "leader.workEndTime", value: "23:59" } });
 });
 
 afterAll(async () => {

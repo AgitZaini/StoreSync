@@ -1,4 +1,4 @@
-import { FieldStockMovementType, OrderStatus } from "@prisma/client";
+import { FieldStockMovementType, OrderStatus, ReturnStatus, SalesReportStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { AppError } from "../../middleware/error-handler";
 import { recordAudit } from "../../utils/audit";
@@ -9,7 +9,8 @@ import type { DataScope } from "../../utils/scope";
 import { lockUser } from "../attendance/attendance-checks";
 import { notifyUser } from "../notifications/notifications.service";
 import { applyFieldStockDelta, orderCode } from "../stock/stock-ledger";
-import type { FieldMovementsQuery, FieldStockQuery, OpeningStockInput } from "./field-stock.schemas";
+import { fieldAvailability } from "../stock/field-availability";
+import type { AvailableStockQuery, FieldMovementsQuery, FieldStockQuery, OpeningStockInput } from "./field-stock.schemas";
 
 const holderSelect = { id: true, name: true, role: true, team: { select: { id: true, name: true } } } satisfies Prisma.UserSelect;
 const productSelect = { id: true, code: true, name: true, unit: true, price: true } satisfies Prisma.ProductSelect;
@@ -84,6 +85,29 @@ export const listFieldStock = async (query: FieldStockQuery, actor: AuditActor) 
     })
     .filter((group) => group.placementId || group.totalQty > 0 || group.items.length > 0)
     .sort((a, b) => a.holder.name.localeCompare(b.holder.name) || a.pharmacy.name.localeCompare(b.pharmacy.name));
+};
+
+/**
+ * BR-14: stok yang masih bisa dilaporkan terjual atau diretur oleh SPG di satu apotek tugasnya,
+ * per produk (sisa stok − laporan menunggu kasir − retur yang belum diterima gudang).
+ */
+export const listAvailableStock = async (query: AvailableStockQuery, actor: AuditActor) => {
+  const placement = await prisma.placement.findFirst({ where: { spgId: actor.id, pharmacyId: query.pharmacyId, endedAt: null }, select: { id: true } });
+
+  if (!placement) {
+    throw new AppError(403, "Anda tidak ditugaskan di apotek ini");
+  }
+
+  const availability = await fieldAvailability(
+    prisma,
+    { holderId: actor.id, pharmacyId: query.pharmacyId },
+    { salesReportId: query.excludeSalesReportId, returnId: query.excludeReturnId },
+  );
+  const products = await prisma.product.findMany({ where: { id: { in: [...availability.keys()] } }, select: productSelect, orderBy: { name: "asc" } });
+
+  return products
+    .map((product) => ({ product, ...availability.get(product.id)! }))
+    .filter((row) => row.onHand > 0 || row.pendingSales > 0 || row.pendingReturns > 0);
 };
 
 /** Riwayat ledger stok satu pemegang di satu apotek (terbaru dulu). */
@@ -195,10 +219,10 @@ export const setOpeningStock = async (input: OpeningStockInput, actor: AuditActo
 
 /**
  * Guard sementara sebelum serah terima (Tahap 7): penempatan tidak bisa dilepas selama SPG masih
- * memegang stok di apotek itu atau masih ada order yang belum selesai.
+ * memegang stok di apotek itu, atau masih ada order, laporan penjualan, atau retur yang belum selesai.
  */
 export const assertPlacementReleasable = async (spgId: string, pharmacyId: string) => {
-  const [stock, openOrders] = await Promise.all([
+  const [stock, openOrders, pendingReports, openReturns] = await Promise.all([
     prisma.fieldStock.aggregate({ where: { holderId: spgId, pharmacyId }, _sum: { qty: true } }),
     prisma.order.findMany({
       where: { spgId, pharmacyId, status: { in: [OrderStatus.SUBMITTED, OrderStatus.APPROVED, OrderStatus.SHIPPED] } },
@@ -206,7 +230,17 @@ export const assertPlacementReleasable = async (spgId: string, pharmacyId: strin
       orderBy: { number: "asc" },
       take: 3,
     }),
+    prisma.salesReport.count({ where: { spgId, pharmacyId, status: SalesReportStatus.SUBMITTED } }),
+    prisma.return.count({ where: { spgId, pharmacyId, status: { in: [ReturnStatus.SUBMITTED, ReturnStatus.KASIR_APPROVED, ReturnStatus.SA_APPROVED] } } }),
   ]);
+
+  if (pendingReports > 0 || openReturns > 0) {
+    throw new AppError(
+      409,
+      "Masih ada laporan penjualan yang belum disetujui kasir atau retur yang belum diterima gudang di apotek ini.",
+      "OPEN_DOCUMENTS",
+    );
+  }
 
   if (openOrders.length > 0) {
     throw new AppError(

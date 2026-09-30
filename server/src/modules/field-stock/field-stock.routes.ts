@@ -14,5 +14,6 @@ fieldStockRouter.use(authenticate);
 
 // AB-05: sisa stok per SPG per apotek. Kasir tidak melihat stok SPG.
 fieldStockRouter.get("/", authorize(SUPER_ADMIN, ADMIN, TEAM_LEADER, SPG), fieldStockController.listFieldStock);
+fieldStockRouter.get("/available", authorize(SPG), fieldStockController.listAvailableStock);
 fieldStockRouter.get("/movements", authorize(SUPER_ADMIN, ADMIN, TEAM_LEADER, SPG), fieldStockController.listMovements);
 fieldStockRouter.put("/opening", authorize(ADMIN), validateBody(openingStockSchema), fieldStockController.setOpeningStock);

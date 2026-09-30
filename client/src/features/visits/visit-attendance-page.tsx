@@ -474,7 +474,7 @@ export function VisitAttendancePage() {
         <CameraCapture
           title={`${KIND_LABEL[flow.kind]} · ${flow.target.name}`}
           stampLines={stampLines}
-          allowUnverified={false}
+          fallback="retry"
           onClose={() => setFlow({ step: "idle" })}
           onCapture={(photo) => void handleCapture(flow.target, flow.kind, photo)}
         />

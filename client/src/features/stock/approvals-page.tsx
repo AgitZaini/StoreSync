@@ -1,5 +1,6 @@
 import { CheckCircle2, ClipboardCheck, XCircle } from "lucide-react";
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { ConfirmDialog } from "../../components/confirm-dialog";
 import { TextInput } from "../../components/form-controls";
 import { buttonStyles } from "../../components/styles";
@@ -8,7 +9,10 @@ import { useToast } from "../../components/toast-context";
 import { Card, EmptyState, Notice, PageHeader, Spinner } from "../../components/ui";
 import { getErrorMessage } from "../../lib/api";
 import { cn } from "../../lib/utils";
+import type { ReturnDoc } from "../../types/sales";
 import type { Order, WarehouseStockRow } from "../../types/stock";
+import { useReturnAction, useReturns } from "../sales/sales-api";
+import { ReturnCard } from "../sales/sales-parts";
 import { OrderCard } from "./order-parts";
 import { useOrderAction, useOrders, useWarehouseStock } from "./stock-api";
 import { formatQty } from "./stock-labels";
@@ -132,15 +136,116 @@ function OrderApprovals() {
   );
 }
 
-/** Halaman persetujuan terpadu Super Admin (AB-13). Tahap ini: order; retur, cuti, dan MOU menyusul. */
+/** RTR-03: retur yang sudah disetujui kasir menunggu keputusan Super Admin; tolak wajib beralasan. */
+function PendingReturnCard({ doc }: { doc: ReturnDoc }) {
+  const action = useReturnAction();
+  const showToast = useToast();
+  const [note, setNote] = useState("");
+  const [rejecting, setRejecting] = useState(false);
+
+  return (
+    <ReturnCard doc={doc} showSpg showPhotos>
+      <div className="mt-3 space-y-3">
+        <TextInput value={note} onChange={(event) => setNote(event.target.value)} placeholder="Catatan persetujuan (opsional)" maxLength={300} />
+        <div className="flex flex-wrap justify-end gap-2">
+          <button type="button" onClick={() => setRejecting(true)} className={cn(buttonStyles.danger, buttonStyles.small)}>
+            <XCircle />
+            Tolak
+          </button>
+          <button
+            type="button"
+            disabled={action.isPending}
+            onClick={() =>
+              action.mutate(
+                { returnId: doc.id, action: "approve", note: note.trim() || undefined },
+                {
+                  onSuccess: () => showToast(`${doc.code} disetujui; Admin diberi tahu untuk menerima barang`),
+                  onError: (error) => showToast(getErrorMessage(error), "error"),
+                },
+              )
+            }
+            className={cn(buttonStyles.primary, buttonStyles.small)}
+          >
+            <CheckCircle2 />
+            Setujui
+          </button>
+        </div>
+      </div>
+      <ConfirmDialog
+        open={rejecting}
+        onClose={() => setRejecting(false)}
+        title={`Tolak ${doc.code}`}
+        message={`${doc.spg.name} akan menerima notifikasi berisi alasan penolakan; barang tetap di apotek.`}
+        reasonLabel="Alasan penolakan"
+        confirmLabel="Tolak retur"
+        tone="danger"
+        onConfirm={async (reason) => {
+          await action.mutateAsync({ returnId: doc.id, action: "reject", reason });
+          showToast(`${doc.code} ditolak`);
+        }}
+      />
+    </ReturnCard>
+  );
+}
+
+function ReturnApprovals() {
+  const pending = useReturns({ status: ["KASIR_APPROVED"] }, { live: true });
+  const decided = useReturns({ status: ["SA_APPROVED", "RECEIVED", "REJECTED"] });
+
+  if (!pending.data) {
+    return (
+      <div className="grid place-items-center py-16">
+        {pending.error ? <Notice tone="red">{getErrorMessage(pending.error)}</Notice> : <Spinner />}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {pending.data.length === 0 ? (
+        <Card>
+          <EmptyState icon={ClipboardCheck}>Tidak ada retur yang menunggu persetujuan.</EmptyState>
+        </Card>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {pending.data.map((doc) => (
+            <PendingReturnCard key={doc.id} doc={doc} />
+          ))}
+        </div>
+      )}
+      {decided.data && decided.data.length > 0 ? (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-subtle">Keputusan terakhir</h2>
+          <div className="grid gap-4 xl:grid-cols-2">
+            {decided.data.slice(0, 6).map((doc) => (
+              <ReturnCard key={doc.id} doc={doc} showSpg showPhotos />
+            ))}
+          </div>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/** Halaman persetujuan terpadu Super Admin (AB-13): order dan retur; cuti dan MOU menyusul (Tahap 8). */
 export function ApprovalsPage() {
-  const pending = useOrders({ status: ["SUBMITTED"] }, { live: true });
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = searchParams.get("tab") === "retur" ? "returns" : "orders";
+  const pendingOrders = useOrders({ status: ["SUBMITTED"] }, { live: true });
+  const pendingReturns = useReturns({ status: ["KASIR_APPROVED"] }, { live: true });
 
   return (
     <>
-      <PageHeader title="Persetujuan" description="Semua persetujuan akhir ada di Super Admin. Retur, cuti, dan MOU akan bergabung di halaman ini." />
-      <Tabs tabs={[{ key: "order", label: "Order", count: pending.data?.length }]} value="order" onChange={() => undefined} />
-      <OrderApprovals />
+      <PageHeader title="Persetujuan" description="Semua persetujuan akhir ada di Super Admin. Cuti dan MOU akan bergabung di halaman ini." />
+      <Tabs
+        tabs={[
+          { key: "orders", label: "Order", count: pendingOrders.data?.length },
+          { key: "returns", label: "Retur", count: pendingReturns.data?.length },
+        ]}
+        value={tab}
+        onChange={(key) => setSearchParams(key === "returns" ? { tab: "retur" } : {}, { replace: true })}
+      />
+      {tab === "orders" ? <OrderApprovals /> : <ReturnApprovals />}
     </>
   );
 }

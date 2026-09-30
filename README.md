@@ -16,7 +16,7 @@ Dokumen acuan:
 - [x] Tahap 3 — Jadwal & absen SPG: jadwal mingguan oleh Admin, absen foto langsung + deteksi wajah/kedip + radius GPS, pemantauan telat/tidak masuk, pengecualian absen disetujui Admin
 - [x] Tahap 4 — Kunjungan Team Leader & lokasi live: absen kunjungan foto + radius di semua apotek aktif dengan durasi otomatis, sesi kerja + lokasi live tiap 5 menit (Wake Lock), peta leader, rencana kunjungan mingguan terkunci Senin 00.00, evaluasi rencana vs kunjungan dengan alasan + bukti
 - [x] Tahap 5 — Stok gudang & order: stok pusat (barang masuk ber-PO, penyesuaian beralasan, riwayat mutasi), order SPG → persetujuan Super Admin → kirim Admin → terima SPG dengan tanda selisih, permintaan belum terpenuhi + rekap pembelian, stok SPG per apotek (ledger) dan stok awal go-live
-- [ ] Tahap 6 — Laporan penjualan, persetujuan kasir & retur
+- [x] Tahap 6 — Laporan penjualan, persetujuan kasir & retur: laporan harian SPG dengan cek stok tersedia, persetujuan/tolak kasir dengan nama + foto wajah, perbaikan & kirim ulang, omzet vs target, laporan tertunda (JUL-05), retur SPG → kasir → Super Admin → diterima gudang dengan tanda selisih
 - [ ] Tahap 7 — Stock opname, serah terima & status gajian
 - [ ] Tahap 8 — Cuti/izin & MOU apotek
 - [ ] Tahap 9 — Dashboard lengkap, notifikasi, rekap, PWA, hardening & uji coba
@@ -76,7 +76,7 @@ Semua akun memakai kata sandi `Password123!`.
 | Super Admin | `0812-0000-0001` | |
 | Admin | `0812-0000-0002` | |
 | Team Leader | `0812-0000-0003` | Memimpin "Tim Demo Jakarta"; punya rencana kunjungan minggu lalu (belum diberi alasan), minggu ini, dan minggu depan |
-| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan, stok awal di kedua apotek, dan satu order menunggu persetujuan |
+| SPG | `0812-0000-0004` | Ditempatkan di Apotek Demo Sehat dan Apotek Demo Keluarga; punya jadwal minggu ini dan minggu depan, stok awal di kedua apotek, satu order menunggu persetujuan, laporan penjualan hari ini (menunggu kasir Sehat), dan satu retur (menunggu kasir Keluarga) |
 | SPG baru | `0812-0000-0006` | Wajib ganti sandi; belum ditempatkan |
 | Kasir Apotek | `0812-0000-0005` | Kasir Apotek Demo Sehat |
 | Kasir Apotek | `0812-0000-0011` | Kasir Apotek Demo Keluarga |
@@ -187,6 +187,21 @@ GET   /api/orders/unfulfilled-recap?from=&to=  Super Admin, Admin — rekap perm
 GET   /api/field-stock?holderId=&pharmacyId=   Super Admin, Admin, Team Leader (timnya), SPG (miliknya)
 GET   /api/field-stock/movements?holderId=&pharmacyId=&productId=   ledger stok SPG
 PUT   /api/field-stock/opening                 Admin — { spgId, pharmacyId, items: [{ productId, qty }] }; terkunci setelah ada transaksi lain
+GET   /api/field-stock/available?pharmacyId=  SPG — stok tersedia (sisa − laporan menunggu − retur berjalan) per produk
+
+# Laporan penjualan & retur (Tahap 6)
+POST  /api/sales-reports                       SPG — { pharmacyId, reportDate?, note?, items: [{ productId, qty }] }; hari ini/kemarin, satu per apotek per hari
+PUT   /api/sales-reports/:id                   SPG — ubah/kirim ulang laporan yang menunggu atau ditolak (revisi +1)
+POST  /api/sales-reports/:id/approve           Kasir — { revision, cashierName, cashierPhotoFileId, faceCheck? }; stok dicek ulang
+POST  /api/sales-reports/:id/reject            Kasir — { revision, cashierName, cashierPhotoFileId, reason }
+GET   /api/sales-reports?status=&from=&to=     sesuai batas akses (Kasir: apoteknya); GET /api/sales-reports/:id
+GET   /api/sales-reports/pending?olderThanDays=1   Super Admin, Admin — laporan belum diputuskan kasir (JUL-05)
+GET   /api/sales-reports/performance?month=    Super Admin, Admin, Team Leader, SPG — omzet disetujui vs target per SPG + harian
+POST  /api/returns                             SPG — { pharmacyId, reason, photoFileId?, items: [{ productId, qty }] }
+POST  /api/returns/:id/kasir-approve | kasir-reject   Kasir — nama + foto (+ reason bila menolak)
+POST  /api/returns/:id/approve | reject        Super Admin — { note? } / { reason }
+POST  /api/returns/:id/receive                 Admin — { items?: [{ itemId, qty }], note? }; catatan wajib bila selisih
+GET   /api/returns?status=&discrepancy=        sesuai batas akses; GET /api/returns/:id
 
 # Berkas & notifikasi (Tahap 1)
 POST  /api/files/presign             { purpose, mimeType, size } → URL upload langsung ke R2/MinIO
@@ -208,6 +223,8 @@ Selama `mustChangePassword` aktif, semua endpoint kecuali `/auth/me`, `/auth/cha
 - Halaman client ada di `client/src/features/<modul>/`, menu per peran di `client/src/routes/navigation.ts`.
 - Absen kunjungan Team Leader memakai tabel `Attendance` yang sama (pemeriksaan di `modules/attendance/attendance-checks.ts`); `LeaderVisit` menautkan absen masuk/keluar dan menyimpan durasi. Lokasi live web hanya berjalan saat aplikasi terbuka (`watchPosition` + Wake Lock, ping tiap 5 menit); titik lokasi tidak dicatat di riwayat.
 - Stok hanya berubah lewat `server/src/modules/stock/stock-ledger.ts`: saldo diubah atomik (pengurangan memakai `WHERE qty >= n`) dan setiap perubahan dicatat sebagai mutasi dengan saldo sesudahnya (`WarehouseMovement`, `FieldStockMovement`). Tabel mutasi dan `Approval` append-only; kolom `qty` stok dijaga `CHECK (qty >= 0)`.
+- Stok tersedia untuk laporan penjualan dan retur = sisa stok − laporan yang menunggu kasir − retur yang belum diterima gudang (`modules/stock/field-availability.ts`); dicek saat kirim dan dicek ulang saat kasir menyetujui. Laporan penjualan yang sudah disetujui dikunci trigger database (AB-06).
+- Retur: stok SPG berkurang sejumlah yang disetujui kasir, stok pusat bertambah sejumlah yang benar-benar diterima Admin; selisihnya ditandai dan Super Admin diberi tahu (asumsi di rencana, menunggu konfirmasi Kak Tutut).
 - Absen (`Attendance`) juga append-only di database. Absen web memakai kamera langsung + deteksi wajah/kedip MediaPipe; model `client/src/assets/models/face_landmarker.task` dan WASM-nya di-host sendiri (±7 MB setelah kompresi, diunduh sekali lalu di-cache). Deteksi lokasi palsu dan tracking latar belakang menyusul di aplikasi mobile (Tahap 10).
 
 ## Deployment

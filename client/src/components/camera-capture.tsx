@@ -51,22 +51,27 @@ const captureFrame = async (video: HTMLVideoElement, stampLines: string[]) => {
 /**
  * Kamera depan layar penuh untuk foto absen (AB-01): hanya dari kamera langsung, tanpa galeri,
  * dengan deteksi satu wajah + kedip. Bila deteksi tidak bisa berjalan, foto tetap bisa diambil
- * dengan `faceCheck.passed = false` supaya pemanggil mengarahkan ke pengecualian Admin. Alur tanpa
- * pengecualian (absen kunjungan Team Leader) memakai `allowUnverified={false}`: hanya bisa mengulang.
+ * dengan `faceCheck.passed = false`. `fallback` menentukan apa yang ditawarkan bila deteksi gagal:
+ * - "exception" (absen SPG): ambil foto lalu ajukan pengecualian ke Admin;
+ * - "retry" (absen kunjungan TL, tanpa pengecualian): hanya bisa mengulang;
+ * - "plain" (foto kasir, AB-07): foto tetap diambil, hasil deteksi ikut dicatat.
  */
+export type CameraFallback = "exception" | "retry" | "plain";
+
 export function CameraCapture({
   title,
   stampLines,
   onCapture,
   onClose,
-  allowUnverified = true,
+  fallback = "exception",
 }: {
   title: string;
   stampLines: () => string[];
   onCapture: (photo: CapturedPhoto) => void;
   onClose: () => void;
-  allowUnverified?: boolean;
+  fallback?: CameraFallback;
 }) {
+  const allowUnverified = fallback !== "retry";
   const videoRef = useRef<HTMLVideoElement>(null);
   const cameraSupported = typeof navigator !== "undefined" && Boolean(navigator.mediaDevices);
   const [phase, setPhase] = useState<Phase>(cameraSupported ? "starting" : "error");
@@ -179,9 +184,11 @@ export function CameraCapture({
         if (stopped) return;
         setPhase("manual");
         setHint(
-          allowUnverified
+          fallback === "exception"
             ? "Verifikasi wajah tidak bisa berjalan di perangkat ini. Ambil foto lalu ajukan pengecualian ke Admin."
-            : "Verifikasi wajah tidak bisa berjalan di perangkat ini. Muat ulang halaman atau pakai Chrome/Safari terbaru.",
+            : fallback === "plain"
+              ? "Verifikasi wajah tidak bisa berjalan di perangkat ini. Pastikan wajah terlihat jelas, lalu ambil foto."
+              : "Verifikasi wajah tidak bisa berjalan di perangkat ini. Muat ulang halaman atau pakai Chrome/Safari terbaru.",
         );
       });
 
@@ -190,7 +197,7 @@ export function CameraCapture({
       cancelAnimationFrame(frameRequest);
       window.clearTimeout(manualTimer);
     };
-  }, [detecting, attempt, takePhoto, allowUnverified]);
+  }, [detecting, attempt, takePhoto, fallback]);
 
   const retake = () => {
     if (captured) URL.revokeObjectURL(captured.previewUrl);
@@ -274,7 +281,7 @@ export function CameraCapture({
               className={cn(phase === "manual" ? buttonStyles.primary : buttonStyles.secondary, "h-12 w-full")}
             >
               <Camera />
-              {phase === "manual" ? "Ambil foto" : "Ambil foto tanpa verifikasi (perlu persetujuan Admin)"}
+              {phase === "manual" ? "Ambil foto" : fallback === "plain" ? "Ambil foto tanpa deteksi kedip" : "Ambil foto tanpa verifikasi (perlu persetujuan Admin)"}
             </button>
           </div>
         ) : null}

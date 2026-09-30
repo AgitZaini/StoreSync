@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowRight, MapPin, MapPinned, Package, PackageCheck, ScanFace, Store, Target, Truck, Users, UsersRound, Warehouse } from "lucide-react";
+import { AlertTriangle, ArrowRight, MapPin, MapPinned, Package, PackageCheck, ScanFace, Store, Target, Truck, Users, UsersRound, ShoppingBag, Warehouse } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { buttonStyles } from "../../components/styles";
@@ -21,8 +21,8 @@ import type { Overview, PharmacyBase } from "../../types/master-data";
 import { useAttendanceMonitor, useTodayAttendance } from "../attendance/attendance-api";
 import { AttendanceStatusPill } from "../attendance/attendance-status-pill";
 import { usePharmacies } from "../pharmacies/pharmacies-api";
+import { useReturns, useSalesPerformance, useSalesReports } from "../sales/sales-api";
 import { useFieldStock, useOrders } from "../stock/stock-api";
-import { useTargets } from "../products/products-api";
 import { useTeams } from "../users/users-api";
 import { useVisitToday } from "../visits/visits-api";
 import { useOverview } from "./dashboard-api";
@@ -129,6 +129,56 @@ function LeadersTodayCard({ summary }: { summary: Overview["leadersToday"] }) {
   );
 }
 
+function ProgressBar({ percent }: { percent: number | null }) {
+  return (
+    <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas">
+      <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(percent ?? 0, 100)}%` }} />
+    </div>
+  );
+}
+
+const percentOf = (value: string, target: string) => (Number(target) > 0 ? Math.round((Number(value) / Number(target)) * 1000) / 10 : null);
+
+/** Tahap 6 di beranda Super Admin/Admin: omzet bulan ini (disetujui kasir), laporan tertunda, retur. */
+function SalesReturnsCard({ overview, canManage }: { overview: Overview; canManage: boolean }) {
+  const { sales, returns } = overview;
+  const percent = percentOf(sales.approvedAmount, sales.targetAmount);
+
+  return (
+    <Card
+      title={`Penjualan ${formatMonth(sales.month)}`}
+      action={
+        <Link to={canManage ? "/persetujuan?tab=retur" : "/laporan-tertunda"} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          {canManage ? "Retur menunggu" : "Laporan tertunda"} <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      <p className="text-2xl font-semibold tabular-nums text-ink" title={formatCurrency(sales.approvedAmount)}>
+        {formatCompactCurrency(sales.approvedAmount)}
+      </p>
+      <p className="text-xs text-muted">
+        dari target {formatCompactCurrency(sales.targetAmount)}
+        {percent !== null ? ` · ${percent}%` : ""} · hanya laporan yang disetujui kasir
+      </p>
+      <ProgressBar percent={percent} />
+      <dl className="mt-4 grid grid-cols-3 gap-2">
+        {[
+          { label: "Menunggu kasir", value: sales.pendingReports, className: "text-orange-600" },
+          { label: "Tertunda > 1 hari", value: sales.overdueReports, className: "text-red-600" },
+          canManage
+            ? { label: "Retur menunggu SA", value: returns.awaitingSa, className: "text-brand-600" }
+            : { label: "Retur siap diterima", value: returns.awaitingReceipt, className: "text-brand-600" },
+        ].map((chip) => (
+          <div key={chip.label} className="rounded-xl bg-canvas px-2 py-2 text-center">
+            <dd className={cn("text-lg font-semibold tabular-nums", chip.value > 0 ? chip.className : "text-ink")}>{chip.value}</dd>
+            <dt className="text-[11px] text-muted">{chip.label}</dt>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  );
+}
+
 /** Tahap 5 di beranda: order yang perlu diputuskan/dikirim dan kondisi stok pusat. */
 function OrdersStockCard({ overview, canManage }: { overview: Overview; canManage: boolean }) {
   const { orders, warehouse } = overview;
@@ -190,6 +240,7 @@ function ManagerSummary({ canManage }: { canManage: boolean }) {
   return (
     <>
       <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+        <SalesReturnsCard overview={overview.data} canManage={canManage} />
         <OrdersStockCard overview={overview.data} canManage={canManage} />
         <AttendanceTodayCard summary={overview.data.attendanceToday} link="/pemantauan-absen" />
         <LeadersTodayCard summary={overview.data.leadersToday} />
@@ -326,11 +377,42 @@ function SpgStockCard() {
   );
 }
 
+/** Omzet bulan ini (disetujui kasir) dibanding target, dan laporan yang masih menunggu kasir. */
+function SpgSalesCard() {
+  const month = currentMonth();
+  const performance = useSalesPerformance(month);
+  const totals = performance.data?.totals;
+
+  return (
+    <Card
+      title={`Omzet ${formatMonth(month)}`}
+      action={
+        <Link to="/laporan-penjualan" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          Laporan penjualan <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      {!totals ? (
+        <Loading />
+      ) : (
+        <>
+          <p className="text-2xl font-semibold tabular-nums text-ink">{formatCurrency(totals.approvedAmount)}</p>
+          <p className="text-xs text-muted">
+            Target {Number(totals.target) > 0 ? formatCurrency(totals.target) : "belum diatur"}
+            {totals.percent !== null ? ` · ${totals.percent}%` : ""}
+          </p>
+          <ProgressBar percent={totals.percent} />
+          {Number(totals.pendingAmount) > 0 ? (
+            <p className="mt-3 text-xs text-orange-700">{formatCurrency(totals.pendingAmount)} masih menunggu persetujuan kasir.</p>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function SpgSummary() {
   const pharmacies = usePharmacies();
-  const month = currentMonth();
-  const targets = useTargets(month);
-  const target = targets.data?.targets[0]?.amount ?? null;
 
   return (
     <>
@@ -338,12 +420,7 @@ function SpgSummary() {
         <SpgTodayCard />
         <SpgStockCard />
       </div>
-      <StatCard
-        label={`Target omzet ${formatMonth(month)}`}
-        value={target ? formatCurrency(target) : "Belum diatur"}
-        icon={Target}
-        caption="Omzet dihitung dari penjualan yang disetujui kasir"
-      />
+      <SpgSalesCard />
       <Card title="Apotek tugas">
         {!pharmacies.data ? (
           <Loading />
@@ -466,22 +543,48 @@ function LeaderSummary() {
 function KasirSummary() {
   const pharmacies = usePharmacies();
   const pharmacy = pharmacies.data?.[0];
+  const reports = useSalesReports({ status: ["SUBMITTED"] }, { live: true });
+  const returns = useReturns({ status: ["SUBMITTED"] }, { live: true });
+  const waiting = (reports.data?.length ?? 0) + (returns.data?.length ?? 0);
 
   return (
-    <Card title="Apotek Anda">
-      {!pharmacies.data ? (
-        <Loading />
-      ) : pharmacy ? (
-        <ul>
-          <PharmacyItem
-            pharmacy={pharmacy}
-            extra={<span className="mt-2 block text-xs text-muted">Laporan penjualan dan retur SPG yang perlu Anda setujui akan tampil di sini.</span>}
-          />
-        </ul>
-      ) : (
-        <EmptyState icon={Store}>Akun ini belum terhubung ke apotek.</EmptyState>
-      )}
-    </Card>
+    <>
+      <Card title="Menunggu persetujuan Anda" action={<ShoppingBag className="size-[18px] text-brand-500" />}>
+        {!reports.data || !returns.data ? (
+          <Loading />
+        ) : (
+          <dl className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Laporan penjualan", value: reports.data.length },
+              { label: "Retur", value: returns.data.length },
+            ].map((chip) => (
+              <div key={chip.label} className="rounded-xl bg-canvas px-2 py-3 text-center">
+                <dd className={cn("text-2xl font-semibold tabular-nums", chip.value > 0 ? "text-orange-600" : "text-ink")}>{chip.value}</dd>
+                <dt className="text-xs text-muted">{chip.label}</dt>
+              </div>
+            ))}
+          </dl>
+        )}
+        <Link to="/persetujuan-kasir" className={cn(waiting > 0 ? buttonStyles.primary : buttonStyles.secondary, "mt-5 flex h-11 w-full")}>
+          <ShoppingBag />
+          Periksa sekarang
+        </Link>
+      </Card>
+      <Card title="Apotek Anda">
+        {!pharmacies.data ? (
+          <Loading />
+        ) : pharmacy ? (
+          <ul>
+            <PharmacyItem
+              pharmacy={pharmacy}
+              extra={<span className="mt-2 block text-xs text-muted">Setiap persetujuan mencatat nama dan foto kasir yang bertugas.</span>}
+            />
+          </ul>
+        ) : (
+          <EmptyState icon={Store}>Akun ini belum terhubung ke apotek.</EmptyState>
+        )}
+      </Card>
+    </>
   );
 }
 
