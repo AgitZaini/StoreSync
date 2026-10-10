@@ -2,11 +2,13 @@ import { z } from "zod";
 import { recordAudit } from "../../utils/audit";
 import type { AuditActor, AuditContext } from "../../utils/audit";
 import { prisma } from "../../utils/prisma";
+import { timeSchema } from "../../utils/schemas";
 import type { CreateDeductionRateInput, UpdateAttendanceSettingsInput, UpdateLeaveQuotaInput } from "./setting.schemas";
 
 const LEAVE_QUOTA_KEY = "leave.teamLeaderAnnualQuotaDays";
 const MAX_ACCURACY_KEY = "attendance.maxAccuracyM";
 const LATE_TOLERANCE_KEY = "attendance.lateToleranceMinutes";
+const LEADER_WORK_END_KEY = "leader.workEndTime";
 
 /** AB-12: jatah cuti Team Leader 15 hari per tahun, termasuk izin sakit. */
 export const DEFAULT_LEAVE_QUOTA_DAYS = 15;
@@ -14,10 +16,18 @@ export const DEFAULT_LEAVE_QUOTA_DAYS = 15;
 export const DEFAULT_MAX_ACCURACY_M = 100;
 /** AB-04: jam absen dicatat apa adanya; toleransi hanya memengaruhi label "telat" di pemantauan. */
 export const DEFAULT_LATE_TOLERANCE_MINUTES = 0;
+/** ABS-03: batas jam kerja Team Leader (WIB); setelah jam ini lokasi live tidak diterima lagi. */
+export const DEFAULT_LEADER_WORK_END_TIME = "21:00";
 
 const readIntSetting = async (key: string, fallback: number) => {
   const setting = await prisma.setting.findUnique({ where: { key } });
   const parsed = z.number().int().min(0).safeParse(setting?.value);
+  return parsed.success ? parsed.data : fallback;
+};
+
+const readTimeSetting = async (key: string, fallback: string) => {
+  const setting = await prisma.setting.findUnique({ where: { key } });
+  const parsed = timeSchema.safeParse(setting?.value);
   return parsed.success ? parsed.data : fallback;
 };
 
@@ -26,6 +36,7 @@ export const getLeaveQuotaDays = () => readIntSetting(LEAVE_QUOTA_KEY, DEFAULT_L
 export const getAttendanceSettings = async () => ({
   maxAccuracyM: await readIntSetting(MAX_ACCURACY_KEY, DEFAULT_MAX_ACCURACY_M),
   lateToleranceMinutes: await readIntSetting(LATE_TOLERANCE_KEY, DEFAULT_LATE_TOLERANCE_MINUTES),
+  leaderWorkEndTime: await readTimeSetting(LEADER_WORK_END_KEY, DEFAULT_LEADER_WORK_END_TIME),
 });
 
 /** Tarif potongan yang berlaku pada waktu `at` (dipakai saat cuti disetujui, Tahap 8). */
@@ -102,6 +113,7 @@ export const updateAttendanceSettings = async (
     for (const [key, value] of [
       [MAX_ACCURACY_KEY, input.maxAccuracyM],
       [LATE_TOLERANCE_KEY, input.lateToleranceMinutes],
+      [LEADER_WORK_END_KEY, input.leaderWorkEndTime],
     ] as const) {
       await tx.setting.upsert({
         where: { key },

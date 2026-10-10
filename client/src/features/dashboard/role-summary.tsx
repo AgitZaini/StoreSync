@@ -1,12 +1,13 @@
-import { AlertTriangle, ArrowRight, Package, ScanFace, Store, Target, Users, UsersRound } from "lucide-react";
+import { AlertTriangle, ArrowRight, MapPin, MapPinned, Package, PackageCheck, ScanFace, Store, Target, Truck, Users, UsersRound, ShoppingBag, Warehouse } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { buttonStyles } from "../../components/styles";
-import { Card, EmptyState, Notice, Spinner, StatCard } from "../../components/ui";
+import { Card, EmptyState, Notice, Pill, Spinner, StatCard } from "../../components/ui";
 import {
   currentMonth,
   formatCompactCurrency,
   formatCurrency,
+  formatDuration,
   formatMonth,
   formatOpeningHours,
   formatScheduleValue,
@@ -16,12 +17,14 @@ import {
 import { cn } from "../../lib/utils";
 import type { AuthUser } from "../../types/auth";
 import type { MonitorSummary } from "../../types/attendance";
-import type { PharmacyBase } from "../../types/master-data";
+import type { Overview, PharmacyBase } from "../../types/master-data";
 import { useAttendanceMonitor, useTodayAttendance } from "../attendance/attendance-api";
 import { AttendanceStatusPill } from "../attendance/attendance-status-pill";
 import { usePharmacies } from "../pharmacies/pharmacies-api";
-import { useTargets } from "../products/products-api";
+import { useReturns, useSalesPerformance, useSalesReports } from "../sales/sales-api";
+import { useFieldStock, useOrders } from "../stock/stock-api";
 import { useTeams } from "../users/users-api";
+import { useVisitToday } from "../visits/visits-api";
 import { useOverview } from "./dashboard-api";
 
 function Loading() {
@@ -90,6 +93,140 @@ function AttendanceTodayCard({ summary, link }: { summary: MonitorSummary; link:
   );
 }
 
+/** ABS-03 + KNJ-02 di beranda Super Admin/Admin: siapa yang sedang bekerja dan berkunjung. */
+function LeadersTodayCard({ summary }: { summary: Overview["leadersToday"] }) {
+  const chips = [
+    { label: "Sedang bekerja", value: summary.active, className: "text-green-600" },
+    { label: "Kunjungan", value: summary.visits, className: "text-brand-600" },
+    { label: "Di apotek", value: summary.openVisits, className: "text-orange-600" },
+  ];
+
+  return (
+    <Card
+      title="Team Leader hari ini"
+      action={
+        <Link to="/peta-leader" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          Buka peta <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      <p className="text-sm text-muted">
+        <span className="text-2xl font-semibold tabular-nums text-ink">{summary.started}</span> dari {summary.leaders} Team Leader sudah mulai
+        kerja
+      </p>
+      <dl className="mt-4 grid grid-cols-3 gap-2">
+        {chips.map((chip) => (
+          <div key={chip.label} className="rounded-xl bg-canvas px-2 py-2 text-center">
+            <dd className={cn("text-lg font-semibold tabular-nums", chip.className)}>{chip.value}</dd>
+            <dt className="text-[11px] text-muted">{chip.label}</dt>
+          </div>
+        ))}
+      </dl>
+      <Link to="/evaluasi-kunjungan" className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700">
+        <MapPinned className="size-3.5" /> Evaluasi rencana vs kunjungan
+      </Link>
+    </Card>
+  );
+}
+
+function ProgressBar({ percent }: { percent: number | null }) {
+  return (
+    <div className="mt-3 h-2 overflow-hidden rounded-full bg-canvas">
+      <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(percent ?? 0, 100)}%` }} />
+    </div>
+  );
+}
+
+const percentOf = (value: string, target: string) => (Number(target) > 0 ? Math.round((Number(value) / Number(target)) * 1000) / 10 : null);
+
+/** Tahap 6 di beranda Super Admin/Admin: omzet bulan ini (disetujui kasir), laporan tertunda, retur. */
+function SalesReturnsCard({ overview, canManage }: { overview: Overview; canManage: boolean }) {
+  const { sales, returns } = overview;
+  const percent = percentOf(sales.approvedAmount, sales.targetAmount);
+
+  return (
+    <Card
+      title={`Penjualan ${formatMonth(sales.month)}`}
+      action={
+        <Link to={canManage ? "/persetujuan?tab=retur" : "/laporan-tertunda"} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          {canManage ? "Retur menunggu" : "Laporan tertunda"} <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      <p className="text-2xl font-semibold tabular-nums text-ink" title={formatCurrency(sales.approvedAmount)}>
+        {formatCompactCurrency(sales.approvedAmount)}
+      </p>
+      <p className="text-xs text-muted">
+        dari target {formatCompactCurrency(sales.targetAmount)}
+        {percent !== null ? ` · ${percent}%` : ""} · hanya laporan yang disetujui kasir
+      </p>
+      <ProgressBar percent={percent} />
+      <dl className="mt-4 grid grid-cols-3 gap-2">
+        {[
+          { label: "Menunggu kasir", value: sales.pendingReports, className: "text-orange-600" },
+          { label: "Tertunda > 1 hari", value: sales.overdueReports, className: "text-red-600" },
+          canManage
+            ? { label: "Retur menunggu SA", value: returns.awaitingSa, className: "text-brand-600" }
+            : { label: "Retur siap diterima", value: returns.awaitingReceipt, className: "text-brand-600" },
+        ].map((chip) => (
+          <div key={chip.label} className="rounded-xl bg-canvas px-2 py-2 text-center">
+            <dd className={cn("text-lg font-semibold tabular-nums", chip.value > 0 ? chip.className : "text-ink")}>{chip.value}</dd>
+            <dt className="text-[11px] text-muted">{chip.label}</dt>
+          </div>
+        ))}
+      </dl>
+    </Card>
+  );
+}
+
+/** Tahap 5 di beranda: order yang perlu diputuskan/dikirim dan kondisi stok pusat. */
+function OrdersStockCard({ overview, canManage }: { overview: Overview; canManage: boolean }) {
+  const { orders, warehouse } = overview;
+  const chips = canManage
+    ? [
+        { label: "Menunggu persetujuan", value: orders.submitted, className: "text-orange-600" },
+        { label: "Siap dikirim", value: orders.approved, className: "text-brand-600" },
+        { label: "Selisih terima", value: orders.openDiscrepancies, className: "text-red-600" },
+      ]
+    : [
+        { label: "Siap dikirim", value: orders.approved, className: "text-brand-600" },
+        { label: "Dalam pengiriman", value: orders.shipped, className: "text-violet-600" },
+        { label: "Selisih terima", value: orders.openDiscrepancies, className: "text-red-600" },
+      ];
+
+  return (
+    <Card
+      title="Order & stok pusat"
+      action={
+        <Link to={canManage ? "/persetujuan" : "/order-masuk"} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          {canManage ? "Buka persetujuan" : "Buka order masuk"} <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      <dl className="grid grid-cols-3 gap-2">
+        {chips.map((chip) => (
+          <div key={chip.label} className="rounded-xl bg-canvas px-2 py-2 text-center">
+            <dd className={cn("text-lg font-semibold tabular-nums", chip.value > 0 ? chip.className : "text-ink")}>{chip.value}</dd>
+            <dt className="text-[11px] text-muted">{chip.label}</dt>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-4 flex items-start gap-2 text-sm text-muted">
+        <Warehouse className="mt-0.5 size-4 shrink-0 text-brand-500" />
+        <span>
+          Stok pusat {warehouse.totalQty.toLocaleString("id-ID")} barang dari {warehouse.products} produk.
+          {warehouse.outOfStock.length > 0 ? (
+            <span className="text-red-600"> Habis: {warehouse.outOfStock.map((product) => product.name).join(", ")}.</span>
+          ) : null}{" "}
+          <Link to="/stok-pusat" className="font-semibold text-brand-600 hover:text-brand-700">
+            Lihat stok
+          </Link>
+        </span>
+      </p>
+    </Card>
+  );
+}
+
 function ManagerSummary({ canManage }: { canManage: boolean }) {
   const overview = useOverview(true);
 
@@ -102,7 +239,12 @@ function ManagerSummary({ canManage }: { canManage: boolean }) {
 
   return (
     <>
-      <AttendanceTodayCard summary={overview.data.attendanceToday} link="/pemantauan-absen" />
+      <div className="grid gap-5 lg:grid-cols-2 2xl:grid-cols-3">
+        <SalesReturnsCard overview={overview.data} canManage={canManage} />
+        <OrdersStockCard overview={overview.data} canManage={canManage} />
+        <AttendanceTodayCard summary={overview.data.attendanceToday} link="/pemantauan-absen" />
+        <LeadersTodayCard summary={overview.data.leadersToday} />
+      </div>
       <div className="grid gap-5 sm:grid-cols-2 2xl:grid-cols-4">
         <StatCard label="Karyawan aktif" value={String(staff)} icon={Users} caption={`${activeUsers.SPG} SPG · ${activeUsers.TEAM_LEADER} Team Leader`} />
         <StatCard label="Apotek aktif" value={String(pharmacies.ACTIVE)} icon={Store} caption={`${pharmacies.INACTIVE} nonaktif`} />
@@ -191,21 +333,94 @@ function SpgTodayCard() {
   );
 }
 
+/** Stok per apotek tugas dan order yang perlu ditindaklanjuti SPG. */
+function SpgStockCard() {
+  const stock = useFieldStock();
+  const orders = useOrders({ status: ["SUBMITTED", "APPROVED", "SHIPPED"] });
+  const toReceive = orders.data?.filter((order) => order.status === "SHIPPED").length ?? 0;
+  const inProgress = (orders.data?.length ?? 0) - toReceive;
+
+  return (
+    <Card title="Stok & order" action={<Package className="size-[18px] text-brand-500" />}>
+      {!stock.data ? (
+        <Loading />
+      ) : stock.data.length === 0 ? (
+        <p className="text-sm text-muted">Belum ada stok.</p>
+      ) : (
+        <ul className="space-y-2">
+          {stock.data.map((group) => (
+            <li key={group.pharmacy.id} className="flex items-center justify-between gap-3 text-sm">
+              <span className="min-w-0 truncate text-ink">{group.pharmacy.name}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-ink">{group.totalQty.toLocaleString("id-ID")} barang</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {toReceive > 0 ? (
+        <div className="mt-4">
+          <Notice>{toReceive} order sudah dikirim. Konfirmasi saat barang tiba.</Notice>
+        </div>
+      ) : inProgress > 0 ? (
+        <p className="mt-4 text-xs text-muted">{inProgress} order sedang diproses.</p>
+      ) : null}
+      <div className="mt-5 grid grid-cols-2 gap-2">
+        <Link to="/stok-saya" className={cn(buttonStyles.secondary, "h-11")}>
+          <Package />
+          Stok saya
+        </Link>
+        <Link to="/order" className={cn(toReceive > 0 ? buttonStyles.primary : buttonStyles.secondary, "h-11")}>
+          {toReceive > 0 ? <PackageCheck /> : <Truck />}
+          Order
+        </Link>
+      </div>
+    </Card>
+  );
+}
+
+/** Omzet bulan ini (disetujui kasir) dibanding target, dan laporan yang masih menunggu kasir. */
+function SpgSalesCard() {
+  const month = currentMonth();
+  const performance = useSalesPerformance(month);
+  const totals = performance.data?.totals;
+
+  return (
+    <Card
+      title={`Omzet ${formatMonth(month)}`}
+      action={
+        <Link to="/laporan-penjualan" className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+          Laporan penjualan <ArrowRight className="size-3.5" />
+        </Link>
+      }
+    >
+      {!totals ? (
+        <Loading />
+      ) : (
+        <>
+          <p className="text-2xl font-semibold tabular-nums text-ink">{formatCurrency(totals.approvedAmount)}</p>
+          <p className="text-xs text-muted">
+            Target {Number(totals.target) > 0 ? formatCurrency(totals.target) : "belum diatur"}
+            {totals.percent !== null ? ` · ${totals.percent}%` : ""}
+          </p>
+          <ProgressBar percent={totals.percent} />
+          {Number(totals.pendingAmount) > 0 ? (
+            <p className="mt-3 text-xs text-orange-700">{formatCurrency(totals.pendingAmount)} masih menunggu persetujuan kasir.</p>
+          ) : null}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function SpgSummary() {
   const pharmacies = usePharmacies();
-  const month = currentMonth();
-  const targets = useTargets(month);
-  const target = targets.data?.targets[0]?.amount ?? null;
 
   return (
     <>
-      <SpgTodayCard />
-      <StatCard
-        label={`Target omzet ${formatMonth(month)}`}
-        value={target ? formatCurrency(target) : "Belum diatur"}
-        icon={Target}
-        caption="Omzet dihitung dari penjualan yang disetujui kasir"
-      />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <SpgTodayCard />
+        <SpgStockCard />
+      </div>
+      <SpgSalesCard />
       <Card title="Apotek tugas">
         {!pharmacies.data ? (
           <Loading />
@@ -223,6 +438,60 @@ function SpgSummary() {
   );
 }
 
+/** ABS-02 + KNJ-01 di beranda Team Leader: rencana hari ini vs yang sudah dikunjungi. */
+function VisitTodayCard() {
+  const today = useVisitToday();
+  const data = today.data;
+  const visitedPlanned = data?.plan.filter((item) => item.visited).length ?? 0;
+
+  return (
+    <Card
+      title="Kunjungan hari ini"
+      action={
+        data ? (
+          data.workDay.status === "ACTIVE" ? (
+            <Pill tone="green">Sesi kerja aktif</Pill>
+          ) : data.workDay.status === "ENDED" ? (
+            <Pill tone="gray">Selesai</Pill>
+          ) : (
+            <Pill tone="blue">Belum mulai</Pill>
+          )
+        ) : null
+      }
+    >
+      {!data ? (
+        <Loading />
+      ) : (
+        <>
+          <p className="text-sm text-muted">
+            <span className="text-2xl font-semibold tabular-nums text-ink">{visitedPlanned}</span> dari {data.plan.length} apotek rencana sudah
+            dikunjungi · {data.visits.length} kunjungan, {formatDuration(data.totalMinutes)}
+          </p>
+          {data.openVisit ? (
+            <p className="mt-2 text-sm text-ink">
+              Sedang di <strong>{data.openVisit.pharmacy.name}</strong> sejak {formatTime(data.openVisit.checkInAt)} WIB
+            </p>
+          ) : null}
+          {data.missingReasons.count > 0 ? (
+            <div className="mt-3">
+              <Notice>
+                {data.missingReasons.count} apotek rencana tidak dikunjungi dan belum diberi alasan.{" "}
+                <Link to={`/rencana-kunjungan?tab=evaluasi&minggu=${data.missingReasons.weekStart}`} className="font-semibold underline">
+                  Isi alasan
+                </Link>
+              </Notice>
+            </div>
+          ) : null}
+        </>
+      )}
+      <Link to="/absen-kunjungan" className={cn(data?.openVisit ? buttonStyles.primary : buttonStyles.secondary, "mt-5 flex h-11 w-full")}>
+        <MapPin />
+        Buka absen kunjungan
+      </Link>
+    </Card>
+  );
+}
+
 function LeaderSummary() {
   const teams = useTeams();
   const monitor = useAttendanceMonitor(todayDate(), { live: true });
@@ -234,15 +503,21 @@ function LeaderSummary() {
 
   if (!team) {
     return (
-      <Card title="Tim saya">
-        <EmptyState icon={UsersRound}>Anda belum memimpin tim. Hubungi Super Admin.</EmptyState>
-      </Card>
+      <>
+        <VisitTodayCard />
+        <Card title="Tim saya">
+          <EmptyState icon={UsersRound}>Anda belum memimpin tim. Hubungi Super Admin.</EmptyState>
+        </Card>
+      </>
     );
   }
 
   return (
     <>
-      {monitor.data ? <AttendanceTodayCard summary={monitor.data.summary} link="/tim" /> : null}
+      <div className="grid gap-5 lg:grid-cols-2">
+        <VisitTodayCard />
+        {monitor.data ? <AttendanceTodayCard summary={monitor.data.summary} link="/tim" /> : null}
+      </div>
       <Card title={`${team.name} · ${team.members.length} SPG`}>
         {team.members.length === 0 ? (
           <EmptyState icon={UsersRound}>Belum ada SPG di tim Anda.</EmptyState>
@@ -268,22 +543,48 @@ function LeaderSummary() {
 function KasirSummary() {
   const pharmacies = usePharmacies();
   const pharmacy = pharmacies.data?.[0];
+  const reports = useSalesReports({ status: ["SUBMITTED"] }, { live: true });
+  const returns = useReturns({ status: ["SUBMITTED"] }, { live: true });
+  const waiting = (reports.data?.length ?? 0) + (returns.data?.length ?? 0);
 
   return (
-    <Card title="Apotek Anda">
-      {!pharmacies.data ? (
-        <Loading />
-      ) : pharmacy ? (
-        <ul>
-          <PharmacyItem
-            pharmacy={pharmacy}
-            extra={<span className="mt-2 block text-xs text-muted">Laporan penjualan dan retur SPG yang perlu Anda setujui akan tampil di sini.</span>}
-          />
-        </ul>
-      ) : (
-        <EmptyState icon={Store}>Akun ini belum terhubung ke apotek.</EmptyState>
-      )}
-    </Card>
+    <>
+      <Card title="Menunggu persetujuan Anda" action={<ShoppingBag className="size-[18px] text-brand-500" />}>
+        {!reports.data || !returns.data ? (
+          <Loading />
+        ) : (
+          <dl className="grid grid-cols-2 gap-2">
+            {[
+              { label: "Laporan penjualan", value: reports.data.length },
+              { label: "Retur", value: returns.data.length },
+            ].map((chip) => (
+              <div key={chip.label} className="rounded-xl bg-canvas px-2 py-3 text-center">
+                <dd className={cn("text-2xl font-semibold tabular-nums", chip.value > 0 ? "text-orange-600" : "text-ink")}>{chip.value}</dd>
+                <dt className="text-xs text-muted">{chip.label}</dt>
+              </div>
+            ))}
+          </dl>
+        )}
+        <Link to="/persetujuan-kasir" className={cn(waiting > 0 ? buttonStyles.primary : buttonStyles.secondary, "mt-5 flex h-11 w-full")}>
+          <ShoppingBag />
+          Periksa sekarang
+        </Link>
+      </Card>
+      <Card title="Apotek Anda">
+        {!pharmacies.data ? (
+          <Loading />
+        ) : pharmacy ? (
+          <ul>
+            <PharmacyItem
+              pharmacy={pharmacy}
+              extra={<span className="mt-2 block text-xs text-muted">Setiap persetujuan mencatat nama dan foto kasir yang bertugas.</span>}
+            />
+          </ul>
+        ) : (
+          <EmptyState icon={Store}>Akun ini belum terhubung ke apotek.</EmptyState>
+        )}
+      </Card>
+    </>
   );
 }
 

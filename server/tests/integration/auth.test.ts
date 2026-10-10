@@ -48,6 +48,8 @@ describe("Auth API", () => {
     await request(app).post("/api/auth/login").send({ phone: "081100000001", password: "wrong-password1" }).expect(401);
     await request(app).post("/api/auth/login").send({ phone: "089999999999", password: TEST_PASSWORD }).expect(401);
     await request(app).post("/api/auth/login").send({ phone: "bukan-nomor", password: TEST_PASSWORD }).expect(401);
+    const malformed = await request(app).post("/api/auth/login").set("Content-Type", "application/json").send('{"phone":"0811').expect(400);
+    expect(malformed.body.message).toBe("Format data tidak valid");
 
     await prisma.user.update({ where: { id: users.spg.id }, data: { status: "INACTIVE" } });
     await request(app).post("/api/auth/login").send({ phone: "081100000004", password: TEST_PASSWORD }).expect(403);

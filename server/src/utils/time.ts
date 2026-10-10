@@ -36,3 +36,8 @@ export const mondayOf = (date: string) => addBusinessDays(date, -((businessWeekd
 
 /** Selisih menit dari `from` ke `to`, dibulatkan ke bawah. */
 export const minutesBetween = (from: Date, to: Date) => Math.floor((to.getTime() - from.getTime()) / 60_000);
+
+const shortDateFormatter = new Intl.DateTimeFormat("id-ID", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+
+/** Tanggal bisnis "YYYY-MM-DD" → "Sel, 29 Sep" untuk pesan notifikasi. */
+export const formatShortBusinessDate = (date: string) => shortDateFormatter.format(new Date(`${date}T00:00:00.000Z`));

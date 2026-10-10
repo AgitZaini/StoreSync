@@ -4,6 +4,7 @@ import { recordAudit } from "../../utils/audit";
 import type { AuditActor, AuditContext } from "../../utils/audit";
 import { prisma } from "../../utils/prisma";
 import { scopeFor, spgIdFilter } from "../../utils/scope";
+import { assertPlacementReleasable } from "../field-stock/field-stock.service";
 import { notifyUser } from "../notifications/notifications.service";
 import { MAX_ACTIVE_PLACEMENTS } from "./placement.schemas";
 import type { CreatePlacementInput, EndPlacementInput, ListPlacementsQuery } from "./placement.schemas";
@@ -136,7 +137,9 @@ export const endPlacement = async (
     throw new AppError(409, "Penempatan ini sudah berakhir");
   }
 
-  // Tahap 5 menambah syarat stok kosong, Tahap 7 mewajibkan serah terima stok (SO-05).
+  // Stok harus kosong dan order selesai dulu; Tahap 7 menambah serah terima stok (SO-05).
+  await assertPlacementReleasable(existing.spg.id, existing.pharmacy.id);
+
   const placement = await prisma.$transaction(async (tx) => {
     const ended = await tx.placement.update({
       where: { id: placementId },

@@ -92,3 +92,35 @@ export function RupiahInput({
     </span>
   );
 }
+
+/** Input jumlah barang (bilangan bulat ≥ 0). Kosong dikirim sebagai `null`. */
+export function QuantityInput({
+  value,
+  onChange,
+  max,
+  invalid,
+  className,
+  ...props
+}: Omit<ComponentPropsWithoutRef<"input">, "value" | "onChange" | "type" | "max"> & {
+  value: number | null;
+  onChange: (value: number | null) => void;
+  max?: number;
+  invalid?: boolean;
+}) {
+  const tooMany = max !== undefined && value !== null && value > max;
+
+  return (
+    <input
+      {...props}
+      type="text"
+      inputMode="numeric"
+      aria-invalid={invalid || tooMany || undefined}
+      value={value === null ? "" : String(value)}
+      onChange={(event) => {
+        const digits = event.target.value.replace(/\D/g, "").slice(0, 6);
+        onChange(digits === "" ? null : Number(digits));
+      }}
+      className={cn(inputClass, "h-10 w-20 px-2.5 text-right tabular-nums", (invalid || tooMany) && invalidClass, className)}
+    />
+  );
+}

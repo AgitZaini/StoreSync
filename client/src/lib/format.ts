@@ -137,3 +137,11 @@ export function formatScheduleValue(value: { isOff: boolean; startTime: string |
 export function formatDistance(meters: number) {
   return meters >= 1000 ? `${(meters / 1000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} km` : `${Math.round(meters)} m`;
 }
+
+/** Lama kunjungan dalam menit → "45 mnt" / "1 j 5 mnt". */
+export function formatDuration(minutes: number) {
+  if (minutes < 60) return `${minutes} mnt`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours} j` : `${hours} j ${rest} mnt`;
+}

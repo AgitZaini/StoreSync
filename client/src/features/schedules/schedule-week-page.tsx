@@ -1,11 +1,12 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, ChevronLeft, ChevronRight, Copy, Undo2 } from "lucide-react";
+import { CalendarDays, Copy, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Dialog, DialogActions } from "../../components/dialog";
 import { SelectInput, TextInput } from "../../components/form-controls";
-import { buttonStyles, iconButtonClass } from "../../components/styles";
+import { buttonStyles } from "../../components/styles";
 import { useToast } from "../../components/toast-context";
 import { Card, EmptyState, Field, Notice, PageHeader, Spinner } from "../../components/ui";
+import { WeekNavigator } from "../../components/week-navigator";
 import { getErrorMessage } from "../../lib/api";
 import { formatBusinessDate, formatScheduleValue, mondayOf, shiftDate, todayDate } from "../../lib/format";
 import { cn } from "../../lib/utils";
@@ -320,34 +321,13 @@ export function ScheduleWeekPage() {
   const week = useScheduleWeek(weekStart, filters);
   const teams = useTeams();
   const pharmacies = usePharmacies({ status: "ACTIVE" });
-  const thisWeek = mondayOf(todayDate());
-
   return (
     <>
       <PageHeader title="Jadwal Mingguan" description="Jadwal SPG per apotek, sesuai yang ditentukan pihak apotek." />
 
       <Card>
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex items-center gap-1">
-            <button type="button" onClick={() => setWeekStart(shiftDate(weekStart, -7))} className={iconButtonClass} aria-label="Minggu sebelumnya">
-              <ChevronLeft className="size-4" />
-            </button>
-            <div className="min-w-44 text-center">
-              <p className="text-sm font-semibold text-ink">
-                {formatBusinessDate(weekStart, { day: "numeric", month: "short" })} –{" "}
-                {formatBusinessDate(shiftDate(weekStart, 6), { day: "numeric", month: "short", year: "numeric" })}
-              </p>
-              {weekStart === thisWeek ? <p className="text-xs text-brand-600">Minggu ini</p> : null}
-            </div>
-            <button type="button" onClick={() => setWeekStart(shiftDate(weekStart, 7))} className={iconButtonClass} aria-label="Minggu berikutnya">
-              <ChevronRight className="size-4" />
-            </button>
-            {weekStart !== thisWeek ? (
-              <button type="button" onClick={() => setWeekStart(thisWeek)} className={cn(buttonStyles.ghost, buttonStyles.small)}>
-                Minggu ini
-              </button>
-            ) : null}
-          </div>
+          <WeekNavigator weekStart={weekStart} onChange={setWeekStart} />
           <div className="grid gap-3 sm:grid-cols-2 lg:w-[440px]">
             <SelectInput
               value={filters.teamId ?? ""}

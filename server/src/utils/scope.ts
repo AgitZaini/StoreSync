@@ -46,3 +46,20 @@ export const spgIdFilter = (scope: DataScope): string | { in: string[] } | undef
       return { in: [] };
   }
 };
+
+/**
+ * Filter dokumen milik SPG di sebuah apotek (laporan penjualan, retur): SPG miliknya, Team Leader
+ * timnya, Kasir dokumen di apoteknya (untuk disetujui), Admin dan Super Admin semua.
+ */
+export const spgDocumentWhere = (scope: DataScope): { spgId?: string | { in: string[] }; pharmacyId?: string } => {
+  switch (scope.kind) {
+    case "all":
+      return {};
+    case "team":
+      return { spgId: { in: scope.spgIds } };
+    case "self":
+      return { spgId: scope.userId };
+    case "pharmacy":
+      return { pharmacyId: scope.pharmacyId ?? "__none__" };
+  }
+};

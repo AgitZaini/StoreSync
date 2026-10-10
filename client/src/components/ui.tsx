@@ -296,6 +296,18 @@ export function Spinner({ className }: { className?: string }) {
   );
 }
 
+/** Lapisan penuh layar selama aksi yang tidak boleh diulang (mis. mengirim absen). */
+export function BusyOverlay({ label }: { label: string }) {
+  return (
+    <div className="fixed inset-0 z-[70] grid place-items-center bg-ink/50 backdrop-blur-sm">
+      <div className="flex flex-col items-center gap-3 rounded-2xl bg-white px-8 py-6 shadow-pop">
+        <Spinner />
+        <p className="text-sm font-medium text-ink">{label}</p>
+      </div>
+    </div>
+  );
+}
+
 export function LoadingScreen({ label = "Memuat..." }: { label?: string }) {
   return (
     <div className="grid min-h-screen place-items-center bg-canvas">

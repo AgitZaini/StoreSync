@@ -29,3 +29,44 @@ export const ScheduleWeekPage = lazy(() =>
   import("../features/schedules/schedule-week-page").then((module) => ({ default: module.ScheduleWeekPage })),
 );
 export const TeamPage = lazy(() => import("../features/team/team-page").then((module) => ({ default: module.TeamPage })));
+
+// Tahap 4: kunjungan Team Leader, rencana & evaluasi, peta leader (Leaflet).
+export const VisitAttendancePage = lazy(() =>
+  import("../features/visits/visit-attendance-page").then((module) => ({ default: module.VisitAttendancePage })),
+);
+export const VisitPlanPage = lazy(() => import("../features/visits/visit-plan-page").then((module) => ({ default: module.VisitPlanPage })));
+export const VisitEvaluationPage = lazy(() =>
+  import("../features/visits/visit-evaluation-page").then((module) => ({ default: module.VisitEvaluationPage })),
+);
+export const LeaderMapPage = lazy(() => import("../features/visits/leader-map-page").then((module) => ({ default: module.LeaderMapPage })));
+
+// Tahap 5: stok gudang, order, stok SPG, persetujuan.
+export const OrderPage = lazy(() => import("../features/stock/order-page").then((module) => ({ default: module.OrderPage })));
+export const MyStockPage = lazy(() => import("../features/stock/my-stock-page").then((module) => ({ default: module.MyStockPage })));
+export const RequestsPage = lazy(() => import("../features/stock/requests-page").then((module) => ({ default: module.RequestsPage })));
+export const ApprovalsPage = lazy(() => import("../features/stock/approvals-page").then((module) => ({ default: module.ApprovalsPage })));
+export const WarehousePage = lazy(() => import("../features/stock/warehouse-page").then((module) => ({ default: module.WarehousePage })));
+export const IncomingOrdersPage = lazy(() =>
+  import("../features/stock/incoming-orders-page").then((module) => ({ default: module.IncomingOrdersPage })),
+);
+export const FieldStockPage = lazy(() =>
+  import("../features/stock/field-stock-page").then((module) => ({ default: module.FieldStockPage })),
+);
+
+// Tahap 6: laporan penjualan, persetujuan kasir, retur.
+export const SalesReportPage = lazy(() =>
+  import("../features/sales/sales-report-page").then((module) => ({ default: module.SalesReportPage })),
+);
+export const ReturnPage = lazy(() => import("../features/sales/return-page").then((module) => ({ default: module.ReturnPage })));
+export const CashierApprovalsPage = lazy(() =>
+  import("../features/sales/cashier-pages").then((module) => ({ default: module.CashierApprovalsPage })),
+);
+export const CashierHistoryPage = lazy(() =>
+  import("../features/sales/cashier-pages").then((module) => ({ default: module.CashierHistoryPage })),
+);
+export const IncomingReturnsPage = lazy(() =>
+  import("../features/sales/admin-sales-pages").then((module) => ({ default: module.IncomingReturnsPage })),
+);
+export const PendingReportsPage = lazy(() =>
+  import("../features/sales/admin-sales-pages").then((module) => ({ default: module.PendingReportsPage })),
+);

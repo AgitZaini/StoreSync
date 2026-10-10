@@ -40,7 +40,6 @@ JWT_REFRESH_SECRET=secret-minimal-32-karakter
 CLIENT_URL=https://your-project.vercel.app
 VITE_API_URL=/api
 VITE_IDLE_TIMEOUT_MINUTES=30
-NODE_ENV=production
 SESSION_IDLE_MINUTES=45
 S3_ENDPOINT=https://ACCOUNT_ID.r2.cloudflarestorage.com
 S3_REGION=auto
@@ -51,6 +50,10 @@ S3_FORCE_PATH_STYLE=false
 ```
 
 Untuk staging yang dipakai demo, tambahkan `VITE_SHOW_DEMO_ACCOUNTS=true` supaya tombol akun demo muncul di halaman login.
+
+> **Jangan tambahkan `NODE_ENV`.** Dengan `NODE_ENV=production`, `npm ci` saat build melewati devDependencies (Vite, TypeScript, Prisma CLI) sehingga build gagal. Vercel sudah memakai mode production saat runtime. `SESSION_IDLE_MINUTES` dan `VITE_IDLE_TIMEOUT_MINUTES` opsional (bawaan 45 dan 30 menit).
+
+Pindahkan juga region fungsi ke dekat database: **Settings → Functions → Function Region → Singapore (sin1)** bila Neon di AWS Asia Pacific (Singapore).
 
 ## 2b. Siapkan bucket Cloudflare R2
 

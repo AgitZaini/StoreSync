@@ -292,7 +292,7 @@ describe("Attendance monitor (ABS-04)", () => {
     await request(app)
       .put("/api/settings/attendance")
       .set(authHeader(superAdminToken))
-      .send({ maxAccuracyM: 100, lateToleranceMinutes: 30 })
+      .send({ maxAccuracyM: 100, lateToleranceMinutes: 30, leaderWorkEndTime: "21:00" })
       .expect(200);
     const tolerant = await request(app).get(`/api/attendance/monitor?date=${DAY}`).set(authHeader(admin.accessToken)).expect(200);
     expect(tolerant.body.rows.find((row: { spg: { name: string } }) => row.spg.name === "SPG Telat")).toMatchObject({

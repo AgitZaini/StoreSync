@@ -1,13 +1,15 @@
-import { CalendarDays, UserCheck, UsersRound } from "lucide-react";
+import { CalendarDays, Package, Target, UserCheck, UsersRound } from "lucide-react";
 import { useState } from "react";
 import { Card, EmptyState, PageHeader, Spinner } from "../../components/ui";
-import { formatBusinessDate, formatScheduleValue, formatTime, mondayOf, todayDate } from "../../lib/format";
+import { currentMonth, formatBusinessDate, formatCurrency, formatMonth, formatScheduleValue, formatTime, mondayOf, todayDate } from "../../lib/format";
 import { cn } from "../../lib/utils";
 import type { MonitorRow } from "../../types/attendance";
 import { useAttendanceMonitor } from "../attendance/attendance-api";
 import { RowDetailDialog } from "../attendance/attendance-monitor-page";
 import { AttendanceStatusPill } from "../attendance/attendance-status-pill";
+import { useSalesPerformance } from "../sales/sales-api";
 import { useScheduleWeek } from "../schedules/schedules-api";
+import { useFieldStock } from "../stock/stock-api";
 import { useTeams } from "../users/users-api";
 
 /** JDW-02 + DSB-01: Team Leader melihat jadwal dan absen SPG timnya (hanya baca). */
@@ -16,6 +18,9 @@ export function TeamPage() {
   const teams = useTeams();
   const monitor = useAttendanceMonitor(today, { live: true });
   const week = useScheduleWeek(mondayOf(today));
+  const stock = useFieldStock();
+  const month = currentMonth();
+  const performance = useSalesPerformance(month);
   const [selected, setSelected] = useState<MonitorRow | null>(null);
   const team = teams.data?.[0];
 
@@ -113,6 +118,64 @@ export function TeamPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </Card>
+
+      <Card title={`Omzet tim ${formatMonth(month)}`} action={<Target className="size-[18px] text-brand-500" />}>
+        {!performance.data ? (
+          <div className="grid place-items-center py-10">
+            <Spinner />
+          </div>
+        ) : performance.data.rows.length === 0 ? (
+          <EmptyState icon={Target}>Belum ada SPG di tim.</EmptyState>
+        ) : (
+          <ul className="divide-y divide-line">
+            {performance.data.rows.map((row) => (
+              <li key={row.spg.id} className="py-3">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="min-w-0 truncate font-medium text-ink">{row.spg.name}</span>
+                  <span className="shrink-0 tabular-nums text-ink">
+                    {formatCurrency(row.approvedAmount)}
+                    <span className="text-xs text-muted"> / {row.target ? formatCurrency(row.target) : "tanpa target"}</span>
+                  </span>
+                </div>
+                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-canvas">
+                  <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(row.percent ?? 0, 100)}%` }} />
+                </div>
+                {row.pendingReports > 0 ? (
+                  <p className="mt-1 text-xs text-orange-700">
+                    {row.pendingReports} laporan ({formatCurrency(row.pendingAmount)}) menunggu kasir
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card title="Stok tim" action={<Package className="size-[18px] text-brand-500" />}>
+        {!stock.data ? (
+          <div className="grid place-items-center py-10">
+            <Spinner />
+          </div>
+        ) : stock.data.length === 0 ? (
+          <EmptyState icon={Package}>Belum ada stok SPG tim.</EmptyState>
+        ) : (
+          <ul className="divide-y divide-line">
+            {stock.data.map((group) => (
+              <li key={`${group.holder.id}:${group.pharmacy.id}`} className="flex items-start justify-between gap-3 py-3">
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-ink">
+                    {group.holder.name} · {group.pharmacy.name}
+                  </span>
+                  <span className="block text-xs text-muted">
+                    {group.items.filter((item) => item.qty > 0).map((item) => `${item.product.name} ${item.qty}`).join(" · ") || "Belum ada stok"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-sm font-semibold tabular-nums text-ink">{group.totalQty.toLocaleString("id-ID")}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </Card>
 

@@ -110,7 +110,7 @@ export type DeductionRate = {
 
 export type Settings = {
   leaveQuotaDays: number;
-  attendance: { maxAccuracyM: number; lateToleranceMinutes: number };
+  attendance: { maxAccuracyM: number; lateToleranceMinutes: number; leaderWorkEndTime: string };
   deductionRate: DeductionRate | null;
   deductionRates: DeductionRate[];
 };
@@ -132,6 +132,11 @@ export type AuditLogPage = { entries: AuditEntry[]; nextCursor: string | null };
 
 export type Overview = {
   attendanceToday: MonitorSummary;
+  leadersToday: { leaders: number; active: number; started: number; visits: number; openVisits: number };
+  orders: { submitted: number; approved: number; shipped: number; openDiscrepancies: number };
+  sales: { month: string; approvedAmount: string; targetAmount: string; pendingReports: number; overdueReports: number };
+  returns: { awaitingKasir: number; awaitingSa: number; awaitingReceipt: number };
+  warehouse: { products: number; totalQty: number; outOfStock: Ref[] };
   activeUsers: Record<UserRole, number>;
   pharmacies: Record<PharmacyStatus, number>;
   activeProducts: number;
